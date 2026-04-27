@@ -1,0 +1,11 @@
+{
+  "total": 50, "totalHits": 50,
+  "hits": [
+    {
+      "id": 10,
+      "largeImageURL": "https://pixabay.com/img-large.jpg",
+      "imageWidth": 4000, "imageHeight": 3000,
+      "user": "Carol"
+    }
+  ]
+}

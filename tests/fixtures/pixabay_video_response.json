@@ -1,0 +1,12 @@
+{
+  "total": 100, "totalHits": 100,
+  "hits": [
+    {
+      "id": 1, "duration": 10, "user": "Alice",
+      "videos": {
+        "large": {"url": "https://pixabay.com/v1-large.mp4", "width": 1920, "height": 1080},
+        "medium": {"url": "https://pixabay.com/v1-med.mp4", "width": 1280, "height": 720}
+      }
+    }
+  ]
+}

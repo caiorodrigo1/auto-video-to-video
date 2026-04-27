@@ -9,8 +9,11 @@ from avtv.models import Block
 
 def _set_env(monkeypatch):
     for key in [
-        "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PEXELS_API_KEY",
-        "PIXABAY_API_KEY", "UNSPLASH_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "PEXELS_API_KEY",
+        "PIXABAY_API_KEY",
+        "UNSPLASH_API_KEY",
     ]:
         monkeypatch.setenv(key, "x")
 
@@ -20,9 +23,12 @@ def mock_openai_response():
     payload = {
         "briefs": [
             {
-                "idx": 1, "query_en": "forest sunlight",
-                "fallback_query": "nature", "kind": "video",
-                "continuity_hint": None, "notes": None,
+                "idx": 1,
+                "query_en": "forest sunlight",
+                "fallback_query": "nature",
+                "kind": "video",
+                "continuity_hint": None,
+                "notes": None,
             }
         ]
     }

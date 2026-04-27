@@ -42,4 +42,5 @@ class Downloader:
 
     def fetch_sync(self, url: str, kind: Kind) -> Path:
         import asyncio
+
         return asyncio.run(self.fetch(url, kind))

@@ -5,9 +5,7 @@ from avtv.models import Block
 BLOCK_DURATION = 8.0
 SEPARATOR = "-" * 60
 
-_HEADER_RE = re.compile(
-    r"^PROMPT\s+(\d+)\s*\|\s*(\d+):(\d+)\s*-\s*(\d+):(\d+)\s*$"
-)
+_HEADER_RE = re.compile(r"^PROMPT\s+(\d+)\s*\|\s*(\d+):(\d+)\s*-\s*(\d+):(\d+)\s*$")
 
 
 class ParseError(ValueError):
@@ -32,9 +30,7 @@ def parse_script(text: str) -> list[Block]:
         start = _to_seconds(m.group(2), m.group(3))
         end = _to_seconds(m.group(4), m.group(5))
         if abs((end - start) - BLOCK_DURATION) > 0.01:
-            raise ParseError(
-                f"block {idx}: duration {end - start}s != {BLOCK_DURATION}s"
-            )
+            raise ParseError(f"block {idx}: duration {end - start}s != {BLOCK_DURATION}s")
         # body until separator
         body_lines: list[str] = []
         i += 1
@@ -52,8 +48,6 @@ def parse_script(text: str) -> list[Block]:
 
     for expected, b in enumerate(blocks, start=1):
         if b.idx != expected:
-            raise ParseError(
-                f"non-sequential idx: expected {expected}, got {b.idx}"
-            )
+            raise ParseError(f"non-sequential idx: expected {expected}, got {b.idx}")
 
     return blocks

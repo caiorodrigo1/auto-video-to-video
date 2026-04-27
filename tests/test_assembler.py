@@ -11,9 +11,15 @@ from avtv.models import Selection
 
 def _sel(**kw):
     base = dict(
-        idx=1, source="pexels", url="u", kind="video",
-        trim_start=None, trim_end=None, speed_factor=None,
-        loop=False, attribution=None,
+        idx=1,
+        source="pexels",
+        url="u",
+        kind="video",
+        trim_start=None,
+        trim_end=None,
+        speed_factor=None,
+        loop=False,
+        attribution=None,
     )
     base.update(kw)
     return Selection(**base)
@@ -66,8 +72,12 @@ def test_plan_continuation():
 def test_build_args_speed_with_audio():
     plan = SegmentPlan(strategy="speed", speed_factor=0.9, use_clip_audio=True)
     args = build_segment_args(
-        input_path="/in/clip.mp4", output_path="/out/seg.ts", plan=plan,
-        target_w=1920, target_h=1080, target_fps=30,
+        input_path="/in/clip.mp4",
+        output_path="/out/seg.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
         clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
@@ -84,8 +94,13 @@ def test_build_args_speed_with_audio():
 def test_build_args_speed_no_audio():
     plan = SegmentPlan(strategy="speed", speed_factor=3.0, use_clip_audio=False)
     args = build_segment_args(
-        input_path="/in.mp4", output_path="/o.ts", plan=plan,
-        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+        input_path="/in.mp4",
+        output_path="/o.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+        clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
     assert "-an" in cmd  # audio dropped
@@ -93,11 +108,19 @@ def test_build_args_speed_no_audio():
 
 def test_build_args_trim():
     plan = SegmentPlan(
-        strategy="trim", trim_start=10.0, trim_end=18.0, use_clip_audio=True,
+        strategy="trim",
+        trim_start=10.0,
+        trim_end=18.0,
+        use_clip_audio=True,
     )
     args = build_segment_args(
-        input_path="/i.mp4", output_path="/o.ts", plan=plan,
-        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+        input_path="/i.mp4",
+        output_path="/o.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+        clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
     assert "-ss 10.0" in cmd
@@ -107,8 +130,13 @@ def test_build_args_trim():
 def test_build_args_loop_short_clip():
     plan = SegmentPlan(strategy="loop", use_clip_audio=False)
     args = build_segment_args(
-        input_path="/i.mp4", output_path="/o.ts", plan=plan,
-        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+        input_path="/i.mp4",
+        output_path="/o.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+        clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
     assert "-stream_loop" in cmd
@@ -118,8 +146,13 @@ def test_build_args_loop_short_clip():
 def test_build_args_ken_burns_image():
     plan = SegmentPlan(strategy="ken_burns", use_clip_audio=False)
     args = build_segment_args(
-        input_path="/i.jpg", output_path="/o.ts", plan=plan,
-        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+        input_path="/i.jpg",
+        output_path="/o.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+        clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
     assert "zoompan" in cmd
@@ -151,6 +184,7 @@ def test_final_mux_args_includes_amix_and_codecs():
 def test_validate_continuations_rejects_first_block():
     bad = [_sel(idx=1, kind="continuation", url="")]
     import pytest
+
     with pytest.raises(ValueError, match="first block"):
         validate_continuations(bad)
 

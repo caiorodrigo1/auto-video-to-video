@@ -5,16 +5,26 @@ from avtv.selector import score_candidate, select_per_block
 
 def _make(**kw) -> Candidate:
     base = dict(
-        source="pexels", url="x", kind="video",
-        duration=8.0, width=1920, height=1080, license="x",
+        source="pexels",
+        url="x",
+        kind="video",
+        duration=8.0,
+        width=1920,
+        height=1080,
+        license="x",
     )
     base.update(kw)
     return Candidate(**base)
 
 
 def _settings(monkeypatch) -> Settings:
-    for k in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PEXELS_API_KEY",
-              "PIXABAY_API_KEY", "UNSPLASH_API_KEY"]:
+    for k in [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "PEXELS_API_KEY",
+        "PIXABAY_API_KEY",
+        "UNSPLASH_API_KEY",
+    ]:
         monkeypatch.setenv(k, "x")
     return Settings()
 
@@ -52,7 +62,10 @@ def test_score_image_candidate(monkeypatch):
 
 def _brief(idx, kind="video"):
     return VisualBrief(
-        idx=idx, query_en="x", fallback_query="y", kind=kind,
+        idx=idx,
+        query_en="x",
+        fallback_query="y",
+        kind=kind,
     )
 
 
@@ -83,8 +96,8 @@ def test_select_dedupes_within_neighbor_window(monkeypatch):
     sels = select_per_block(briefs, cands, settings=s)
     urls = [s.url for s in sels]
     assert urls[0] == "popular"
-    assert urls[1] == "alt"   # blocked by neighbor dedup
-    assert urls[2] == "alt"   # also blocked
+    assert urls[1] == "alt"  # blocked by neighbor dedup
+    assert urls[2] == "alt"  # also blocked
 
 
 def test_select_continuation_passthrough(monkeypatch):
@@ -111,5 +124,6 @@ def test_select_first_block_no_candidates_raises(monkeypatch):
     import pytest
 
     from avtv.selector import SelectorError
+
     with pytest.raises(SelectorError):
         select_per_block(briefs, cands, settings=s)

@@ -81,9 +81,7 @@ def search(
     rd = RunDir(base_dir=_runs_dir(runs_dir), run_id=run_id)
     briefs = rd.load_briefs()
     orch = _build_orchestrator(settings)
-    results = asyncio.run(
-        orch.search_for_briefs(briefs, concurrency=settings.search_concurrency)
-    )
+    results = asyncio.run(orch.search_for_briefs(briefs, concurrency=settings.search_concurrency))
     rd.save_search_results(results)
     total = sum(len(v) for v in results.values())
     console.print(f"[green]searched[/green] {len(briefs)} briefs, {total} candidates")
@@ -162,9 +160,7 @@ def build(
     console.print(f"  briefed via {name}")
 
     orch = _build_orchestrator(settings)
-    results = asyncio.run(
-        orch.search_for_briefs(briefs, concurrency=settings.search_concurrency)
-    )
+    results = asyncio.run(orch.search_for_briefs(briefs, concurrency=settings.search_concurrency))
     rd.save_search_results(results)
     console.print(f"  searched: {sum(len(v) for v in results.values())} candidates")
 

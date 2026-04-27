@@ -25,9 +25,7 @@ def test_parse_creates_blocks_json(tmp_path: Path, monkeypatch: object) -> None:
         mp.setenv(k, "x")
 
     script = tmp_path / "s.txt"
-    script.write_text(
-        (Path(__file__).parent / "fixtures" / "sample_script.txt").read_text()
-    )
+    script.write_text((Path(__file__).parent / "fixtures" / "sample_script.txt").read_text())
     runs = tmp_path / "runs"
     mp.chdir(tmp_path)
     mp.setenv("RUNS_DIR", str(runs))

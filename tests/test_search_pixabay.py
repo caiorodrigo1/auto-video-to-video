@@ -18,9 +18,7 @@ IMAGE_FIX = json.loads(
 @pytest.mark.asyncio
 @respx.mock
 async def test_pixabay_video_search():
-    respx.get("https://pixabay.com/api/videos/").mock(
-        return_value=Response(200, json=VIDEO_FIX)
-    )
+    respx.get("https://pixabay.com/api/videos/").mock(return_value=Response(200, json=VIDEO_FIX))
     a = PixabayAdapter(api_key="k")
     results = await a.search("nature", kind="video")
     assert len(results) == 1
@@ -33,9 +31,7 @@ async def test_pixabay_video_search():
 @pytest.mark.asyncio
 @respx.mock
 async def test_pixabay_image_search():
-    respx.get("https://pixabay.com/api/").mock(
-        return_value=Response(200, json=IMAGE_FIX)
-    )
+    respx.get("https://pixabay.com/api/").mock(return_value=Response(200, json=IMAGE_FIX))
     a = PixabayAdapter(api_key="k")
     results = await a.search("forest", kind="image")
     assert len(results) == 1

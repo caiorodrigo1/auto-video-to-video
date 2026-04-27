@@ -48,8 +48,6 @@ class ClaudeProvider:
         briefs = parse_briefs_response(tool_blocks[0].input)
 
         if len(briefs) != len(blocks):
-            raise ValueError(
-                f"count mismatch: got {len(briefs)} briefs for {len(blocks)} blocks"
-            )
+            raise ValueError(f"count mismatch: got {len(briefs)} briefs for {len(blocks)} blocks")
 
         return briefs

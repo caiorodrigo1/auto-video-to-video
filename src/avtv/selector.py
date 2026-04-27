@@ -133,9 +133,7 @@ def select_per_block(
             (c for c in ranked if c.url not in window),
             max(
                 ranked,
-                key=lambda c: next(
-                    (i for i, u in enumerate(used_recent) if u == c.url), -1
-                ),
+                key=lambda c: next((i for i, u in enumerate(used_recent) if u == c.url), -1),
             ),
         )
 

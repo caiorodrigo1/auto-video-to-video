@@ -40,8 +40,6 @@ class OpenAIProvider:
         briefs = parse_briefs_response(data)
 
         if len(briefs) != len(blocks):
-            raise ValueError(
-                f"count mismatch: got {len(briefs)} briefs for {len(blocks)} blocks"
-            )
+            raise ValueError(f"count mismatch: got {len(briefs)} briefs for {len(blocks)} blocks")
 
         return briefs

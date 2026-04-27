@@ -28,10 +28,7 @@ class WikimediaAdapter:
                 },
             )
             search.raise_for_status()
-            titles = [
-                s["title"]
-                for s in search.json().get("query", {}).get("search", [])
-            ]
+            titles = [s["title"] for s in search.json().get("query", {}).get("search", [])]
             if not titles:
                 return []
 

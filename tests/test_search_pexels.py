@@ -13,9 +13,7 @@ FIX = json.loads((Path(__file__).parent / "fixtures" / "pexels_response.json").r
 @pytest.mark.asyncio
 @respx.mock
 async def test_pexels_search_videos():
-    respx.get("https://api.pexels.com/videos/search").mock(
-        return_value=Response(200, json=FIX)
-    )
+    respx.get("https://api.pexels.com/videos/search").mock(return_value=Response(200, json=FIX))
     adapter = PexelsAdapter(api_key="testkey")
     results = await adapter.search("forest", limit=2, kind="video")
     assert len(results) == 2

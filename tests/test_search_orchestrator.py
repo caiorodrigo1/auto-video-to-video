@@ -21,8 +21,13 @@ class FakeAdapter:
 
 def _c(source, url):
     return Candidate(
-        source=source, url=url, kind="video", duration=8.0,
-        width=1920, height=1080, license="x",
+        source=source,
+        url=url,
+        kind="video",
+        duration=8.0,
+        width=1920,
+        height=1080,
+        license="x",
     )
 
 
@@ -33,7 +38,10 @@ async def test_orchestrator_combines_video_adapters():
     orch = SearchOrchestrator(adapters=[a1, a2])
 
     brief = VisualBrief(
-        idx=1, query_en="forest", fallback_query="nature", kind="video",
+        idx=1,
+        query_en="forest",
+        fallback_query="nature",
+        kind="video",
     )
     results = await orch.search_for_brief(brief)
     urls = {c.url for c in results}
@@ -46,7 +54,10 @@ async def test_orchestrator_uses_fallback_when_primary_empty():
     orch = SearchOrchestrator(adapters=[a])
 
     brief = VisualBrief(
-        idx=1, query_en="forest", fallback_query="nature", kind="video",
+        idx=1,
+        query_en="forest",
+        fallback_query="nature",
+        kind="video",
     )
     results = await orch.search_for_brief(brief)
     assert len(results) == 1
@@ -60,7 +71,10 @@ async def test_orchestrator_skips_continuation():
     a = FakeAdapter("a", {"video"}, {})
     orch = SearchOrchestrator(adapters=[a])
     brief = VisualBrief(
-        idx=1, query_en="x", fallback_query="y", kind="continuation",
+        idx=1,
+        query_en="x",
+        fallback_query="y",
+        kind="continuation",
     )
     results = await orch.search_for_brief(brief)
     assert results == []

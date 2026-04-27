@@ -37,3 +37,13 @@ output/
 *.mov
 *.avi
 *.webm
+
+# avtv runtime
+runs/
+cache/
+input/
+output*
+
+# Python tooling caches
+.pytest_cache/
+.ruff_cache/

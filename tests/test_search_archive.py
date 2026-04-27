@@ -6,9 +6,7 @@ from avtv.search.archive_org import ArchiveOrgAdapter
 
 SEARCH_RESPONSE = {
     "response": {
-        "docs": [
-            {"identifier": "test_item_1", "title": "Test Documentary", "creator": "Public"}
-        ]
+        "docs": [{"identifier": "test_item_1", "title": "Test Documentary", "creator": "Public"}]
     }
 }
 
@@ -23,8 +21,13 @@ async def test_archive_search_returns_video():
     # Mock metadata call
     metadata = {
         "files": [
-            {"name": "test.mp4", "format": "h.264", "length": "30.5",
-             "width": "1920", "height": "1080"},
+            {
+                "name": "test.mp4",
+                "format": "h.264",
+                "length": "30.5",
+                "width": "1920",
+                "height": "1080",
+            },
             {"name": "test.gif", "format": "Animated GIF"},
         ]
     }

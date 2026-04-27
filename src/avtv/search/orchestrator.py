@@ -12,9 +12,7 @@ class SearchOrchestrator:
     def _adapters_for(self, kind: MediaKind) -> list[SearchAdapter]:
         return [a for a in self.adapters if kind in a.media_kinds]
 
-    async def _search_all(
-        self, query: str, kind: MediaKind
-    ) -> list[Candidate]:
+    async def _search_all(self, query: str, kind: MediaKind) -> list[Candidate]:
         relevant = self._adapters_for(kind)
         coros = [a.search(query, limit=self.top_k, kind=kind) for a in relevant]
         results = await asyncio.gather(*coros, return_exceptions=True)

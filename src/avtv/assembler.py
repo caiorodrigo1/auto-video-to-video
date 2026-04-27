@@ -23,7 +23,7 @@ class SegmentPlan:
     use_clip_audio: bool = True
 
 
-def plan_segment(sel: Selection, source_duration: float | None) -> SegmentPlan:
+def plan_segment(sel: Selection) -> SegmentPlan:
     if sel.kind == "continuation":
         return SegmentPlan(strategy="continuation", use_clip_audio=False)
     if sel.kind == "image":
@@ -336,13 +336,15 @@ def assemble_run(
         if sel.kind == "continuation":
             # Continuation reuses the prior segment file as-is. No re-fetch,
             # no re-encode — just reference the same .ts in the concat list.
-            assert last_segment is not None  # validate_continuations guarantees
+            if last_segment is None:
+                raise FFmpegError(
+                    f"block {sel.idx}: continuation has no prior segment"
+                )
             segment_paths.append(last_segment)
             continue
 
         input_path = _fetch_for(downloader, sel)
-        duration = probe_duration(input_path) if sel.kind == "video" else None
-        plan = plan_segment(sel, duration)
+        plan = plan_segment(sel)
 
         seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
         args = build_segment_args(

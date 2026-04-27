@@ -1,4 +1,4 @@
-from avtv.assembler import plan_segment
+from avtv.assembler import SegmentPlan, build_segment_args, plan_segment
 from avtv.models import Selection
 
 
@@ -54,3 +54,66 @@ def test_plan_continuation():
     sel = _sel(kind="continuation", url="")
     plan = plan_segment(sel, source_duration=None)
     assert plan.strategy == "continuation"
+
+
+def test_build_args_speed_with_audio():
+    plan = SegmentPlan(strategy="speed", speed_factor=0.9, use_clip_audio=True)
+    args = build_segment_args(
+        input_path="/in/clip.mp4", output_path="/out/seg.ts", plan=plan,
+        target_w=1920, target_h=1080, target_fps=30,
+        clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "-i /in/clip.mp4" in cmd
+    assert "/out/seg.ts" in cmd
+    # setpts factor for slowing down to fit 8s: 1/0.9
+    assert "setpts=" in cmd
+    assert "atempo=0.9" in cmd
+    assert "volume=-20.0dB" in cmd
+    assert "scale=" in cmd
+    assert "1920" in cmd and "1080" in cmd
+
+
+def test_build_args_speed_no_audio():
+    plan = SegmentPlan(strategy="speed", speed_factor=3.0, use_clip_audio=False)
+    args = build_segment_args(
+        input_path="/in.mp4", output_path="/o.ts", plan=plan,
+        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "-an" in cmd  # audio dropped
+
+
+def test_build_args_trim():
+    plan = SegmentPlan(
+        strategy="trim", trim_start=10.0, trim_end=18.0, use_clip_audio=True,
+    )
+    args = build_segment_args(
+        input_path="/i.mp4", output_path="/o.ts", plan=plan,
+        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "-ss 10.0" in cmd
+    assert "-t 8.0" in cmd
+
+
+def test_build_args_loop_short_clip():
+    plan = SegmentPlan(strategy="loop", use_clip_audio=False)
+    args = build_segment_args(
+        input_path="/i.mp4", output_path="/o.ts", plan=plan,
+        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "-stream_loop" in cmd
+    assert "-t 8.0" in cmd
+
+
+def test_build_args_ken_burns_image():
+    plan = SegmentPlan(strategy="ken_burns", use_clip_audio=False)
+    args = build_segment_args(
+        input_path="/i.jpg", output_path="/o.ts", plan=plan,
+        target_w=1920, target_h=1080, target_fps=30, clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "zoompan" in cmd
+    assert "-t 8.0" in cmd

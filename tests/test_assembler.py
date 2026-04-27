@@ -1,4 +1,11 @@
-from avtv.assembler import SegmentPlan, build_segment_args, plan_segment
+from avtv.assembler import (
+    SegmentPlan,
+    build_concat_demuxer_file,
+    build_final_mux_args,
+    build_segment_args,
+    plan_segment,
+    validate_continuations,
+)
 from avtv.models import Selection
 
 
@@ -117,3 +124,41 @@ def test_build_args_ken_burns_image():
     cmd = " ".join(args)
     assert "zoompan" in cmd
     assert "-t 8.0" in cmd
+
+
+def test_concat_demuxer_file_format():
+    out = build_concat_demuxer_file(["/a.ts", "/b.ts"])
+    assert "file '/a.ts'" in out
+    assert "file '/b.ts'" in out
+    assert out.endswith("\n")
+
+
+def test_final_mux_args_includes_amix_and_codecs():
+    args = build_final_mux_args(
+        concat_list_path="/c.txt",
+        narration_path="/n.mp3",
+        output_path="/o.mp4",
+    )
+    cmd = " ".join(args)
+    assert "-f concat" in cmd
+    assert "/c.txt" in cmd
+    assert "/n.mp3" in cmd
+    assert "amix=inputs=2" in cmd
+    assert "-c:v copy" in cmd
+    assert "/o.mp4" in cmd
+
+
+def test_validate_continuations_rejects_first_block():
+    bad = [_sel(idx=1, kind="continuation", url="")]
+    import pytest
+    with pytest.raises(ValueError, match="first block"):
+        validate_continuations(bad)
+
+
+def test_validate_continuations_accepts_normal_run():
+    ok = [
+        _sel(idx=1, url="A"),
+        _sel(idx=2, kind="continuation", url=""),
+        _sel(idx=3, url="B"),
+    ]
+    validate_continuations(ok)  # no raise

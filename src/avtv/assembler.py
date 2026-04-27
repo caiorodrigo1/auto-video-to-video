@@ -168,3 +168,35 @@ def _ken_burns_args(
         "-an",
         "-f", "mpegts", output_path,
     ]
+
+
+def validate_continuations(selections: list[Selection]) -> None:
+    """Reject runs where block 1 is a continuation (no prior source to extend)."""
+    if not selections:
+        return
+    if selections[0].kind == "continuation":
+        raise ValueError(
+            f"block {selections[0].idx}: first block cannot be continuation"
+        )
+
+
+def build_concat_demuxer_file(segment_paths: list[str]) -> str:
+    return "\n".join(f"file '{p}'" for p in segment_paths) + "\n"
+
+
+def build_final_mux_args(
+    concat_list_path: str,
+    narration_path: str,
+    output_path: str,
+) -> list[str]:
+    return [
+        "-y",
+        "-f", "concat", "-safe", "0", "-i", concat_list_path,
+        "-i", narration_path,
+        "-filter_complex",
+        "[0:a]anull[clip];[clip][1:a]amix=inputs=2:duration=longest[out]",
+        "-map", "0:v", "-map", "[out]",
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k",
+        output_path,
+    ]

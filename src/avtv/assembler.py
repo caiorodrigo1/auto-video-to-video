@@ -1,3 +1,4 @@
+import subprocess
 from dataclasses import dataclass
 from typing import Literal
 
@@ -168,6 +169,20 @@ def _ken_burns_args(
         "-an",
         "-f", "mpegts", output_path,
     ]
+
+
+class FFmpegError(RuntimeError):
+    pass
+
+
+def run_ffmpeg(args: list[str]) -> None:
+    full = ["ffmpeg", *args]
+    result = subprocess.run(full, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise FFmpegError(
+            f"ffmpeg failed (exit {result.returncode}):\n{result.stderr}\n"
+            f"command: {' '.join(full)}"
+        )
 
 
 def validate_continuations(selections: list[Selection]) -> None:

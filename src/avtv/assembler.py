@@ -1,8 +1,13 @@
+import json
 import subprocess
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
 from avtv.models import Selection
+
+if TYPE_CHECKING:
+    from avtv.downloader import Downloader, Kind
 
 Strategy = Literal["speed", "loop", "trim", "ken_burns", "continuation"]
 ATEMPO_MIN = 0.5
@@ -215,3 +220,75 @@ def build_final_mux_args(
         "-c:a", "aac", "-b:a", "192k",
         output_path,
     ]
+
+
+def probe_duration(path: Path) -> float:
+    """Probe media duration via ffprobe."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_format", "-of", "json", str(path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise FFmpegError(f"ffprobe failed: {result.stderr}")
+    fmt = json.loads(result.stdout).get("format", {})
+    return float(fmt.get("duration", 0.0))
+
+
+def _fetch_for(downloader: "Downloader", sel: Selection) -> Path:
+    media_kind: "Kind" = "video" if sel.kind == "video" else "image"
+    return downloader.fetch_sync(sel.url, kind=media_kind)
+
+
+def assemble_run(
+    selections: list[Selection],
+    narration_path: Path,
+    output_path: Path,
+    work_dir: Path,
+    downloader: "Downloader",
+    target_w: int,
+    target_h: int,
+    target_fps: int,
+    clip_audio_db: float,
+) -> Path:
+    work_dir.mkdir(parents=True, exist_ok=True)
+    validate_continuations(selections)
+
+    segment_paths: list[Path] = []
+    last_segment: Path | None = None
+
+    for sel in selections:
+        if sel.kind == "continuation":
+            # Continuation reuses the prior segment file as-is. No re-fetch,
+            # no re-encode — just reference the same .ts in the concat list.
+            assert last_segment is not None  # validate_continuations guarantees
+            segment_paths.append(last_segment)
+            continue
+
+        input_path = _fetch_for(downloader, sel)
+        duration = probe_duration(input_path) if sel.kind == "video" else None
+        plan = plan_segment(sel, duration)
+
+        seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
+        args = build_segment_args(
+            input_path=str(input_path),
+            output_path=str(seg_out),
+            plan=plan,
+            target_w=target_w,
+            target_h=target_h,
+            target_fps=target_fps,
+            clip_audio_db=clip_audio_db,
+        )
+        run_ffmpeg(args)
+        segment_paths.append(seg_out)
+        last_segment = seg_out
+
+    list_path = work_dir / "concat.txt"
+    list_path.write_text(build_concat_demuxer_file([str(p) for p in segment_paths]))
+
+    mux_args = build_final_mux_args(
+        concat_list_path=str(list_path),
+        narration_path=str(narration_path),
+        output_path=str(output_path),
+    )
+    run_ffmpeg(mux_args)
+    return output_path

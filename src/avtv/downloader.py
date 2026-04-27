@@ -39,3 +39,7 @@ class Downloader:
         data = await self._do_get(url)
         target.write_bytes(data)
         return target
+
+    def fetch_sync(self, url: str, kind: Kind) -> Path:
+        import asyncio
+        return asyncio.run(self.fetch(url, kind))

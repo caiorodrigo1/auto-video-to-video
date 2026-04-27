@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 from pathlib import Path
 
 import typer
@@ -186,3 +187,54 @@ def build(
         clip_audio_db=settings.clip_audio_db_offset,
     )
     console.print(f"[green]build complete[/green] → {out}")
+
+
+@app.command()
+def runs(runs_dir: str | None = typer.Option(None)) -> None:  # noqa: B008
+    """List all runs and their state."""
+    base = _runs_dir(runs_dir)
+    if not base.exists():
+        console.print("[dim](no runs)[/dim]")
+        return
+    for child in sorted(base.iterdir()):
+        if not child.is_dir():
+            continue
+        stages = []
+        for name, label in [
+            (RunDir.BLOCKS, "parse"),
+            (RunDir.BRIEFS, "brief"),
+            (RunDir.SEARCH, "search"),
+            (RunDir.SELECTIONS, "select"),
+        ]:
+            mark = "✓" if (child / name).exists() else "·"
+            stages.append(f"{mark}{label}")
+        console.print(f"{child.name}  {' '.join(stages)}")
+
+
+@app.command()
+def inspect(run_id: str, runs_dir: str | None = typer.Option(None)) -> None:  # noqa: B008
+    """Show stage status for a single run."""
+    rd = RunDir(base_dir=_runs_dir(runs_dir), run_id=run_id)
+    if not rd.path.exists():
+        console.print(f"[red]no such run:[/red] {run_id}")
+        raise typer.Exit(1)
+    for name, label in [
+        (RunDir.BLOCKS, "blocks"),
+        (RunDir.BRIEFS, "briefs"),
+        (RunDir.SEARCH, "search results"),
+        (RunDir.SELECTIONS, "selections"),
+    ]:
+        p = rd.path / name
+        status = f"[green]✓[/green] {p.stat().st_size}B" if p.exists() else "[dim]·[/dim]"
+        console.print(f"  {label:18s} {status}")
+
+
+@app.command()
+def clean(run_id: str, runs_dir: str | None = typer.Option(None)) -> None:  # noqa: B008
+    """Remove a run directory (keeps download cache)."""
+    rd = RunDir(base_dir=_runs_dir(runs_dir), run_id=run_id)
+    if not rd.path.exists():
+        console.print(f"[red]no such run:[/red] {run_id}")
+        raise typer.Exit(1)
+    shutil.rmtree(rd.path)
+    console.print(f"[yellow]removed[/yellow] {rd.path}")

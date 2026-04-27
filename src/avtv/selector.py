@@ -1,5 +1,5 @@
 from avtv.config import Settings
-from avtv.models import Candidate
+from avtv.models import Candidate, Selection, VisualBrief
 
 SOURCE_PREFERENCE = {
     "pexels": 0.30,
@@ -54,3 +54,93 @@ def score_candidate(c: Candidate, settings: Settings) -> float:
         + settings.weight_resolution * resolution
         + settings.weight_source * source_pref
     )
+
+
+class SelectorError(RuntimeError):
+    pass
+
+
+def _selection_from(brief: VisualBrief, c: Candidate) -> Selection:
+    speed_factor: float | None = None
+    trim_start: float | None = None
+    trim_end: float | None = None
+    loop = False
+
+    if c.kind == "video" and c.duration is not None:
+        target = 8.0
+        if c.duration < 4.0:
+            loop = True
+        elif c.duration > 16.0:
+            mid = c.duration / 2
+            trim_start = max(0.0, mid - target / 2)
+            trim_end = trim_start + target
+        else:
+            speed_factor = c.duration / target
+
+    return Selection(
+        idx=brief.idx,
+        source=c.source,
+        url=c.url,
+        kind=c.kind,
+        trim_start=trim_start,
+        trim_end=trim_end,
+        speed_factor=speed_factor,
+        loop=loop,
+        attribution=c.attribution,
+    )
+
+
+def _continuation(brief: VisualBrief) -> Selection:
+    return Selection(
+        idx=brief.idx,
+        source="",
+        url="",
+        kind="continuation",
+        attribution=None,
+    )
+
+
+def select_per_block(
+    briefs: list[VisualBrief],
+    candidates: dict[int, list[Candidate]],
+    settings: Settings,
+) -> list[Selection]:
+    selections: list[Selection] = []
+    used_recent: list[str] = []  # URLs in ±neighbor_window range
+
+    for brief in briefs:
+        if brief.kind == "continuation":
+            selections.append(_continuation(brief))
+            used_recent.append("")
+            continue
+
+        cands = candidates.get(brief.idx, [])
+
+        if not cands:
+            if brief.idx == 1:
+                raise SelectorError(
+                    f"block {brief.idx} has no candidates and is the first block "
+                    f"(cannot continue from previous)"
+                )
+            selections.append(_continuation(brief))
+            used_recent.append("")
+            continue
+
+        ranked = sorted(cands, key=lambda c: score_candidate(c, settings), reverse=True)
+
+        window = used_recent[-settings.neighbor_window :]
+        chosen = next(
+            (c for c in ranked if c.url not in window),
+            max(
+                ranked,
+                key=lambda c: next(
+                    (i for i, u in enumerate(used_recent) if u == c.url), -1
+                ),
+            ),
+        )
+
+        sel = _selection_from(brief, chosen)
+        selections.append(sel)
+        used_recent.append(chosen.url)
+
+    return selections

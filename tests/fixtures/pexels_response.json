@@ -1,0 +1,25 @@
+{
+  "page": 1, "per_page": 2, "total_results": 100,
+  "videos": [
+    {
+      "id": 1, "width": 1920, "height": 1080, "duration": 12,
+      "url": "https://pexels.com/video/1",
+      "image": "https://pexels.com/poster.jpg",
+      "user": {"name": "Alice"},
+      "video_files": [
+        {"id": 100, "quality": "hd", "width": 1920, "height": 1080,
+         "link": "https://pexels.com/v1.mp4"}
+      ]
+    },
+    {
+      "id": 2, "width": 1280, "height": 720, "duration": 5,
+      "url": "https://pexels.com/video/2",
+      "image": "https://pexels.com/p2.jpg",
+      "user": {"name": "Bob"},
+      "video_files": [
+        {"id": 200, "quality": "sd", "width": 1280, "height": 720,
+         "link": "https://pexels.com/v2.mp4"}
+      ]
+    }
+  ]
+}

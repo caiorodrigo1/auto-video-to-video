@@ -9,7 +9,7 @@ def get_provider(name: str) -> LLMProvider:
 
         return ClaudeProvider()
     if name == "gpt":
-        from avtv.briefing.gpt import OpenAIProvider  # type: ignore[import-untyped]
+        from avtv.briefing.gpt import OpenAIProvider
 
-        return OpenAIProvider()  # type: ignore[no-any-return]
+        return OpenAIProvider()
     raise ValueError(f"unknown provider: {name}")

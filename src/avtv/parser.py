@@ -29,8 +29,6 @@ def parse_script(text: str) -> list[Block]:
         idx = int(m.group(1))
         start = _to_seconds(m.group(2), m.group(3))
         end = _to_seconds(m.group(4), m.group(5))
-        if abs((end - start) - BLOCK_DURATION) > 0.01:
-            raise ParseError(f"block {idx}: duration {end - start}s != {BLOCK_DURATION}s")
         # body until separator
         body_lines: list[str] = []
         i += 1
@@ -45,6 +43,19 @@ def parse_script(text: str) -> list[Block]:
 
     if not blocks:
         raise ParseError("no blocks found")
+
+    # All blocks except the last must be exactly BLOCK_DURATION seconds.
+    # The trailing block may be shorter (audio tail).
+    for b in blocks[:-1]:
+        dur = b.end - b.start
+        if abs(dur - BLOCK_DURATION) > 0.01:
+            raise ParseError(f"block {b.idx}: duration {dur}s != {BLOCK_DURATION}s")
+    last = blocks[-1]
+    last_dur = last.end - last.start
+    if last_dur <= 0 or last_dur > BLOCK_DURATION + 0.01:
+        raise ParseError(
+            f"last block {last.idx}: duration {last_dur}s out of range (0, {BLOCK_DURATION}]"
+        )
 
     for expected, b in enumerate(blocks, start=1):
         if b.idx != expected:

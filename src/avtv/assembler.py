@@ -271,6 +271,14 @@ def build_final_mux_args(
     narration_path: str,
     output_path: str,
 ) -> list[str]:
+    """Concat segments and mux with narration audio.
+
+    NOTE: clip-audio mixing was dropped because per-segment streams are
+    heterogeneous (image/loop/extreme-speed segments have no audio track),
+    which breaks ffmpeg's concat-demuxer audio output. Only narration is
+    used as the final audio. Clip audio at -20dB can be added back once
+    every segment has a uniform (real or silent) audio stream.
+    """
     return [
         "-y",
         "-f",
@@ -281,18 +289,17 @@ def build_final_mux_args(
         concat_list_path,
         "-i",
         narration_path,
-        "-filter_complex",
-        "[0:a]anull[clip];[clip][1:a]amix=inputs=2:duration=longest[out]",
         "-map",
         "0:v",
         "-map",
-        "[out]",
+        "1:a",
         "-c:v",
         "copy",
         "-c:a",
         "aac",
         "-b:a",
         "192k",
+        "-shortest",
         output_path,
     ]
 
@@ -343,10 +350,16 @@ def assemble_run(
             segment_paths.append(last_segment)
             continue
 
+        seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
+        if seg_out.exists() and seg_out.stat().st_size > 0:
+            # Segment already encoded — reuse (re-runs after crash are cheap).
+            segment_paths.append(seg_out)
+            last_segment = seg_out
+            continue
+
         input_path = _fetch_for(downloader, sel)
         plan = plan_segment(sel)
 
-        seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
         args = build_segment_args(
             input_path=str(input_path),
             output_path=str(seg_out),
@@ -361,7 +374,11 @@ def assemble_run(
         last_segment = seg_out
 
     list_path = work_dir / "concat.txt"
-    list_path.write_text(build_concat_demuxer_file([str(p) for p in segment_paths]))
+    # Use absolute paths so the concat demuxer resolves them correctly
+    # regardless of the cwd or the concat list's own directory.
+    list_path.write_text(
+        build_concat_demuxer_file([str(p.resolve()) for p in segment_paths])
+    )
 
     mux_args = build_final_mux_args(
         concat_list_path=str(list_path),

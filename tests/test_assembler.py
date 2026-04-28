@@ -166,7 +166,7 @@ def test_concat_demuxer_file_format():
     assert out.endswith("\n")
 
 
-def test_final_mux_args_includes_amix_and_codecs():
+def test_final_mux_args_includes_concat_and_codecs():
     args = build_final_mux_args(
         concat_list_path="/c.txt",
         narration_path="/n.mp3",
@@ -176,8 +176,11 @@ def test_final_mux_args_includes_amix_and_codecs():
     assert "-f concat" in cmd
     assert "/c.txt" in cmd
     assert "/n.mp3" in cmd
-    assert "amix=inputs=2" in cmd
+    # Narration audio is mapped directly (no mix); clip audio dropped for MVP.
+    assert "-map 0:v" in cmd
+    assert "-map 1:a" in cmd
     assert "-c:v copy" in cmd
+    assert "-shortest" in cmd
     assert "/o.mp4" in cmd
 
 

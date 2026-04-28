@@ -38,7 +38,7 @@ def parse(
     base = _runs_dir(runs_dir)
     rd = RunDir(base_dir=base, run_id=run_id) if run_id else RunDir.new(base)
     rd.ensure()
-    blocks = parse_script(script.read_text())
+    blocks = parse_script(script.read_text(encoding="utf-8"))
     rd.save_blocks(blocks)
     console.print(f"[green]parsed[/green] {len(blocks)} blocks → {rd.path}")
 
@@ -149,7 +149,7 @@ def build(
 
     console.print(f"[bold]run-id:[/bold] {rd.run_id}")
 
-    blocks = parse_script(script.read_text())
+    blocks = parse_script(script.read_text(encoding="utf-8"))
     rd.save_blocks(blocks)
     console.print(f"  parsed {len(blocks)} blocks")
 

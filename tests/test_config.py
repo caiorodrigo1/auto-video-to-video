@@ -1,12 +1,16 @@
 from avtv.config import Settings
 
 
-def test_settings_loads_defaults(monkeypatch):
+def test_settings_loads_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai")
     monkeypatch.setenv("PEXELS_API_KEY", "test-pexels")
     monkeypatch.setenv("PIXABAY_API_KEY", "test-pixabay")
     monkeypatch.setenv("UNSPLASH_API_KEY", "test-unsplash")
+    monkeypatch.delenv("DEFAULT_LLM_PROVIDER", raising=False)
+    # Run from a tmp dir so the project's local .env is not picked up
+    # (otherwise a developer's DEFAULT_LLM_PROVIDER=gpt would fail this test).
+    monkeypatch.chdir(tmp_path)
 
     s = Settings()
     assert s.anthropic_api_key == "test-anthropic"

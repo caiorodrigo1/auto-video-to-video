@@ -38,10 +38,12 @@ class RunDir:
 
     def _save_models(self, name: str, items: Sequence[BaseModel]) -> None:
         out = [m.model_dump() for m in items]
-        (self.path / name).write_text(json.dumps(out, indent=2, ensure_ascii=False))
+        (self.path / name).write_text(
+            json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def _load_models(self, name: str, model_cls: type[BaseModel]) -> list[Any]:
-        raw = json.loads((self.path / name).read_text())
+        raw = json.loads((self.path / name).read_text(encoding="utf-8"))
         return [model_cls.model_validate(item) for item in raw]
 
     def save_blocks(self, blocks: list[Block]) -> None:
@@ -58,10 +60,12 @@ class RunDir:
 
     def save_search_results(self, results: dict[int, list[Candidate]]) -> None:
         out = {str(k): [c.model_dump() for c in v] for k, v in results.items()}
-        (self.path / self.SEARCH).write_text(json.dumps(out, indent=2, ensure_ascii=False))
+        (self.path / self.SEARCH).write_text(
+            json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def load_search_results(self) -> dict[int, list[Candidate]]:
-        raw = json.loads((self.path / self.SEARCH).read_text())
+        raw = json.loads((self.path / self.SEARCH).read_text(encoding="utf-8"))
         return {int(k): [Candidate.model_validate(c) for c in v] for k, v in raw.items()}
 
     def save_selections(self, selections: list[Selection]) -> None:

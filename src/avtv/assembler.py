@@ -374,10 +374,13 @@ def assemble_run(
         last_segment = seg_out
 
     list_path = work_dir / "concat.txt"
-    # Use absolute paths so the concat demuxer resolves them correctly
-    # regardless of the cwd or the concat list's own directory.
+    # Use absolute, forward-slash paths so the concat demuxer resolves them
+    # correctly regardless of the cwd, the concat list's own directory, or
+    # the host OS (Windows builds of ffmpeg dislike backslashes inside the
+    # 'file ...' lines of the concat manifest).
     list_path.write_text(
-        build_concat_demuxer_file([str(p.resolve()) for p in segment_paths])
+        build_concat_demuxer_file([p.resolve().as_posix() for p in segment_paths]),
+        encoding="utf-8",
     )
 
     mux_args = build_final_mux_args(

@@ -12,8 +12,19 @@ Free sources only (Pexels, Pixabay, Internet Archive, Wikimedia, Unsplash).
 
 - Python 3.11+
 - [Poetry](https://python-poetry.org/)
-- `ffmpeg` (e.g. `brew install ffmpeg`)
+- `ffmpeg` and `ffprobe` on `PATH`
+  - macOS: `brew install ffmpeg`
+  - Windows: `winget install ffmpeg` (or `choco install ffmpeg`, or download
+    from <https://www.gyan.dev/ffmpeg/builds/> and add `bin/` to `PATH`)
+  - Linux: `apt install ffmpeg` (or distro equivalent)
 - API keys: Anthropic OR OpenAI (LLM); Pexels, Pixabay, Unsplash (search)
+
+## Platform notes
+
+- **macOS / Linux:** primary tested platforms.
+- **Windows:** supported. Use PowerShell or cmd; `poetry run avtv ...` works
+  the same. The pipeline writes UTF-8 JSON and uses forward-slash absolute
+  paths in the ffmpeg concat list, so no encoding or path-separator quirks.
 
 ## Setup
 

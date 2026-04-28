@@ -234,3 +234,27 @@ def clean(run_id: str, runs_dir: str | None = typer.Option(None)) -> None:  # no
         raise typer.Exit(1)
     shutil.rmtree(rd.path)
     console.print(f"[yellow]removed[/yellow] {rd.path}")
+
+
+@app.command()
+def ui(
+    port: int = typer.Option(8501, help="Port for the Streamlit server"),
+) -> None:
+    """Launch the Streamlit web UI in your browser."""
+    import subprocess
+    import sys
+
+    ui_path = Path(__file__).parent / "ui" / "streamlit_app.py"
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(ui_path),
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "false",
+    ]
+    console.print(f"[green]launching UI on port {port}[/green]")
+    subprocess.run(cmd, check=False)

@@ -38,6 +38,19 @@ cp .env.example .env
 
 ## Usage
 
+### Streamlit UI (recommended for interactive use)
+
+```bash
+poetry run avtv ui
+```
+
+Opens `http://localhost:8501` in your browser. Upload an MP3 and a DOTTI SYNC
+`.txt`, pick a provider (Claude or GPT), click **Start build**. Progress is
+streamed by stage. Once done, the output MP4 plays inline and you can edit
+`04_selections.json` inline and re-run only the assemble stage.
+
+### CLI
+
 Full pipeline:
 
 ```bash

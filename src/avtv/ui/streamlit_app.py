@@ -110,7 +110,13 @@ def _run_stage_select(rd: RunDir, settings: Settings) -> int:
     return len(sels)
 
 
-def _run_stage_assemble(rd: RunDir, audio_path: Path, settings: Settings) -> Path:
+def _run_stage_assemble(
+    rd: RunDir,
+    audio_path: Path,
+    settings: Settings,
+    on_segment: object | None = None,
+    on_mux: object | None = None,
+) -> Path:
     sels = rd.load_selections()
     out_path = rd.path / "output.mp4"
     downloader = Downloader(cache_dir=Path(settings.cache_dir))
@@ -124,6 +130,8 @@ def _run_stage_assemble(rd: RunDir, audio_path: Path, settings: Settings) -> Pat
         target_h=settings.target_resolution[1],
         target_fps=settings.target_fps,
         clip_audio_db=settings.clip_audio_db_offset,
+        on_segment=on_segment,  # type: ignore[arg-type]
+        on_mux=on_mux,  # type: ignore[arg-type]
     )
     return out_path
 
@@ -239,8 +247,19 @@ if mode == "new":
             n_sels = _run_stage_select(rd, settings)
             st.write(f"  → {n_sels} clips")
 
-            st.write("🎬 **Assemble** (this is the slow one — download + ffmpeg)")
-            out_path = _run_stage_assemble(rd, audio_path, settings)
+            st.write("🎬 **Assemble** (download + ffmpeg)")
+            seg_bar = st.progress(0.0, text="Encoding segments…")
+
+            def on_segment(i: int, total: int) -> None:
+                seg_bar.progress(i / total, text=f"Segment {i}/{total}")
+
+            def on_mux() -> None:
+                seg_bar.progress(1.0, text="Muxing final MP4…")
+
+            out_path = _run_stage_assemble(
+                rd, audio_path, settings, on_segment=on_segment, on_mux=on_mux
+            )
+            seg_bar.empty()
             st.write(f"  → {out_path}")
 
             status.update(label="✅ Build complete", state="complete")
@@ -392,7 +411,18 @@ elif mode == "run":
         ):
             assert a_path is not None
             with st.status("Assembling…", expanded=True) as status:
-                out_path = _run_stage_assemble(rd, a_path, settings)
+                bar = st.progress(0.0, text="Encoding segments…")
+
+                def _on_seg(i: int, total: int) -> None:
+                    bar.progress(i / total, text=f"Segment {i}/{total}")
+
+                def _on_mux() -> None:
+                    bar.progress(1.0, text="Muxing final MP4…")
+
+                out_path = _run_stage_assemble(
+                    rd, a_path, settings, on_segment=_on_seg, on_mux=_on_mux
+                )
+                bar.empty()
                 status.update(label=f"✅ Done → {out_path}", state="complete")
             st.rerun()
 

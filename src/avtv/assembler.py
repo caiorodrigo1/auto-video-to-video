@@ -1,5 +1,6 @@
 import json
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -8,6 +9,10 @@ from avtv.models import Selection
 
 if TYPE_CHECKING:
     from avtv.downloader import Downloader, Kind
+
+# Callback invoked after each segment finishes (or is reused from cache).
+# Signature: (current_index, total) — both 1-based for display.
+ProgressCallback = Callable[[int, int], None]
 
 Strategy = Literal["speed", "loop", "trim", "ken_burns", "continuation"]
 ATEMPO_MIN = 0.5
@@ -332,14 +337,23 @@ def assemble_run(
     target_h: int,
     target_fps: int,
     clip_audio_db: float,
+    on_segment: ProgressCallback | None = None,
+    on_mux: Callable[[], None] | None = None,
 ) -> Path:
+    """Assemble segments into the final MP4.
+
+    `on_segment(i, total)` fires once per selection (after that segment is
+    encoded or reused from cache); `i` and `total` are 1-based.
+    `on_mux()` fires once, right before the final concat+mux ffmpeg call.
+    """
     work_dir.mkdir(parents=True, exist_ok=True)
     validate_continuations(selections)
 
     segment_paths: list[Path] = []
     last_segment: Path | None = None
+    total = len(selections)
 
-    for sel in selections:
+    for i, sel in enumerate(selections, start=1):
         if sel.kind == "continuation":
             # Continuation reuses the prior segment file as-is. No re-fetch,
             # no re-encode — just reference the same .ts in the concat list.
@@ -348,6 +362,8 @@ def assemble_run(
                     f"block {sel.idx}: continuation has no prior segment"
                 )
             segment_paths.append(last_segment)
+            if on_segment:
+                on_segment(i, total)
             continue
 
         seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
@@ -355,6 +371,8 @@ def assemble_run(
             # Segment already encoded — reuse (re-runs after crash are cheap).
             segment_paths.append(seg_out)
             last_segment = seg_out
+            if on_segment:
+                on_segment(i, total)
             continue
 
         input_path = _fetch_for(downloader, sel)
@@ -372,6 +390,8 @@ def assemble_run(
         run_ffmpeg(args)
         segment_paths.append(seg_out)
         last_segment = seg_out
+        if on_segment:
+            on_segment(i, total)
 
     list_path = work_dir / "concat.txt"
     # Use absolute, forward-slash paths so the concat demuxer resolves them
@@ -383,6 +403,8 @@ def assemble_run(
         encoding="utf-8",
     )
 
+    if on_mux:
+        on_mux()
     mux_args = build_final_mux_args(
         concat_list_path=str(list_path),
         narration_path=str(narration_path),

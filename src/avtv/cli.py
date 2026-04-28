@@ -244,6 +244,13 @@ def ui(
     import subprocess
     import sys
 
+    # Suppress Streamlit's first-run email prompt (otherwise it blocks the
+    # process waiting for stdin). Also opt out of usage telemetry.
+    creds_path = Path.home() / ".streamlit" / "credentials.toml"
+    if not creds_path.exists():
+        creds_path.parent.mkdir(parents=True, exist_ok=True)
+        creds_path.write_text('[general]\nemail = ""\n', encoding="utf-8")
+
     ui_path = Path(__file__).parent / "ui" / "streamlit_app.py"
     cmd = [
         sys.executable,
@@ -254,7 +261,9 @@ def ui(
         "--server.port",
         str(port),
         "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
         "false",
     ]
-    console.print(f"[green]launching UI on port {port}[/green]")
+    console.print(f"[green]launching UI on http://localhost:{port}[/green]")
     subprocess.run(cmd, check=False)

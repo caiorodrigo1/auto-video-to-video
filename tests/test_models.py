@@ -73,3 +73,29 @@ def test_selection_video_with_speed():
         attribution=None,
     )
     assert s.speed_factor == 0.9
+
+
+def test_selection_accepts_image_montage_kind():
+    sel = Selection(
+        idx=4,
+        source="",
+        url="",
+        kind="image_montage",
+        montage_urls=["https://a/1.jpg", "https://a/2.jpg", "https://a/3.jpg"],
+        montage_sources=["pixabay", "wikimedia", "pixabay"],
+    )
+    assert sel.kind == "image_montage"
+    assert sel.montage_urls == ["https://a/1.jpg", "https://a/2.jpg", "https://a/3.jpg"]
+    assert sel.montage_sources == ["pixabay", "wikimedia", "pixabay"]
+
+
+def test_selection_montage_defaults_empty():
+    # Existing kinds must keep their old shape: montage fields default to [].
+    sel = Selection(idx=1, source="pexels", url="https://x", kind="video")
+    assert sel.montage_urls == []
+    assert sel.montage_sources == []
+
+
+def test_selection_rejects_unknown_kind():
+    with pytest.raises(ValidationError):
+        Selection(idx=1, source="", url="", kind="image_carousel")

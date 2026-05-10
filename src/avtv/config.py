@@ -29,8 +29,6 @@ class Settings(BaseSettings):
     weight_duration: float = 1.0
     weight_resolution: float = 1.0
     weight_source: float = 1.0
-    repetition_penalty: float = 0.5
-    neighbor_window: int = 2
     image_montage_max: int = 3
 
     # Search

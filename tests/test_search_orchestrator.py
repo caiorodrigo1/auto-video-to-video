@@ -79,3 +79,48 @@ async def test_orchestrator_skips_continuation():
     results = await orch.search_for_brief(brief)
     assert results == []
     assert a.calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_images_for_brief_uses_query_en_first():
+    img = Candidate(
+        source="pixabay", url="img1", kind="image", duration=None,
+        width=1920, height=1080, license="x",
+    )
+    a = FakeAdapter(
+        "pix", {"image"},
+        {("forest", "image"): [img]},
+    )
+    orch = SearchOrchestrator(adapters=[a])
+
+    brief = VisualBrief(idx=1, query_en="forest", fallback_query="nature", kind="video")
+    out = await orch.search_images_for_brief(brief)
+    assert [c.url for c in out] == ["img1"]
+    assert a.calls == [("forest", "image")]
+
+
+@pytest.mark.asyncio
+async def test_search_images_for_brief_falls_back_to_fallback_query():
+    img = Candidate(
+        source="pixabay", url="img-nature", kind="image", duration=None,
+        width=1920, height=1080, license="x",
+    )
+    a = FakeAdapter(
+        "pix", {"image"},
+        {("nature", "image"): [img]},
+    )
+    orch = SearchOrchestrator(adapters=[a])
+
+    brief = VisualBrief(idx=1, query_en="forest", fallback_query="nature", kind="continuation")
+    out = await orch.search_images_for_brief(brief)
+    assert [c.url for c in out] == ["img-nature"]
+    assert a.calls == [("forest", "image"), ("nature", "image")]
+
+
+@pytest.mark.asyncio
+async def test_search_images_for_brief_returns_empty_when_no_image_adapter():
+    a = FakeAdapter("vid", {"video"}, {("forest", "video"): []})
+    orch = SearchOrchestrator(adapters=[a])
+    brief = VisualBrief(idx=1, query_en="forest", fallback_query="nature", kind="video")
+    out = await orch.search_images_for_brief(brief)
+    assert out == []

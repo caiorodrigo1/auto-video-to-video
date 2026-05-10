@@ -97,7 +97,15 @@ def select(
     rd = RunDir(base_dir=_runs_dir(runs_dir), run_id=run_id)
     briefs = rd.load_briefs()
     candidates = rd.load_search_results()
-    selections = select_per_block(briefs, candidates, settings=settings)
+    orch = _build_orchestrator(settings)
+    selections = asyncio.run(
+        select_per_block(
+            briefs,
+            candidates,
+            settings=settings,
+            image_search=orch.search_images_for_brief,
+        )
+    )
     rd.save_selections(selections)
     console.print(f"[green]selected[/green] {len(selections)} clips")
 
@@ -164,7 +172,14 @@ def build(
     rd.save_search_results(results)
     console.print(f"  searched: {sum(len(v) for v in results.values())} candidates")
 
-    selections = select_per_block(briefs, results, settings=settings)
+    selections = asyncio.run(
+        select_per_block(
+            briefs,
+            results,
+            settings=settings,
+            image_search=orch.search_images_for_brief,
+        )
+    )
     rd.save_selections(selections)
     console.print(f"  selected {len(selections)} clips")
 

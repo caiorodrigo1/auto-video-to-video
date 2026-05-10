@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     weight_source: float = 1.0
     repetition_penalty: float = 0.5
     neighbor_window: int = 2
+    image_montage_max: int = 3
 
     # Search
     search_top_k: int = 8

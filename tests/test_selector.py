@@ -251,3 +251,28 @@ async def test_no_image_search_continuation_uses_extend(monkeypatch):
     cands = {1: [_make(url="v1", height=1080)], 2: []}
     sels = await select_per_block(briefs, cands, settings=s, image_search=None)
     assert sels[1].kind == "continuation"
+
+
+@pytest.mark.asyncio
+async def test_video_brief_with_empty_pool_and_empty_image_search_extends(monkeypatch):
+    s = _settings(monkeypatch)
+    briefs = [_brief(1), _brief(2)]
+    cands = {1: [_make(url="v1", height=1080)], 2: []}
+
+    async def fake(_b):
+        return []
+
+    sels = await select_per_block(briefs, cands, settings=s, image_search=fake)
+    assert sels[0].url == "v1"
+    assert sels[1].kind == "continuation"
+
+
+@pytest.mark.asyncio
+async def test_first_block_continuation_with_no_image_search_raises(monkeypatch):
+    from avtv.selector import SelectorError
+
+    s = _settings(monkeypatch)
+    briefs = [_brief(1, kind="continuation")]
+    cands: dict[int, list] = {}
+    with pytest.raises(SelectorError):
+        await select_per_block(briefs, cands, settings=s, image_search=None)

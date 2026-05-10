@@ -196,6 +196,23 @@ def _selection_urls(sel: Selection) -> list[str]:
     return []
 
 
+async def _try_image_fallback(
+    brief: VisualBrief,
+    used: set[str],
+    settings: Settings,
+    image_search: ImageSearch,
+) -> Selection | None:
+    """Run image_search and convert results into a montage / single image / None.
+    Returns None when fewer than 1 unused image came back."""
+    images = await image_search(brief)
+    unused = _pick_unused_images(images, used, settings, limit=settings.image_montage_max)
+    if len(unused) >= 2:
+        return _montage(brief, unused)
+    if len(unused) == 1:
+        return _selection_from_video(brief, unused[0])
+    return None
+
+
 async def _resolve_continuation(
     brief: VisualBrief,
     used: set[str],
@@ -204,13 +221,8 @@ async def _resolve_continuation(
 ) -> Selection:
     if image_search is None:
         return _continuation(brief)
-    images = await image_search(brief)
-    unused = _pick_unused_images(images, used, settings, limit=settings.image_montage_max)
-    if len(unused) >= 2:
-        return _montage(brief, unused)
-    if len(unused) == 1:
-        return _selection_from_video(brief, unused[0])
-    return _continuation(brief)
+    sel = await _try_image_fallback(brief, used, settings, image_search)
+    return sel if sel is not None else _continuation(brief)
 
 
 async def _resolve_visual(
@@ -228,12 +240,9 @@ async def _resolve_visual(
 
     # Pool exhausted: try image_montage fallback.
     if image_search is not None:
-        images = await image_search(brief)
-        unused = _pick_unused_images(images, used, settings, limit=settings.image_montage_max)
-        if len(unused) >= 2:
-            return _montage(brief, unused)
-        if len(unused) == 1:
-            return _selection_from_video(brief, unused[0])
+        sel = await _try_image_fallback(brief, used, settings, image_search)
+        if sel is not None:
+            return sel
 
     # Last-resort: repeat the candidate seen the longest ago. If we have no
     # candidates at all and we're not the first block, extend the previous.
@@ -247,5 +256,9 @@ async def _resolve_visual(
 
     ranked = sorted(cands, key=lambda c: score_candidate(c, settings), reverse=True)
     # Prefer the candidate whose last-used position is smallest (used the longest ago).
-    chosen = min(ranked, key=lambda c: last_idx_used.get(c.url, -1))
+    # Invariant: every cand.url is guaranteed to be in last_idx_used here.
+    # _pick_unused_video returned None above means every candidate's URL is in
+    # `used`, and `used` and `last_idx_used` are updated together in the
+    # select_per_block loop, so direct indexing is safe (no .get default needed).
+    chosen = min(ranked, key=lambda c: last_idx_used[c.url])
     return _selection_from_video(brief, chosen)

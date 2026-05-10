@@ -432,6 +432,25 @@ def assemble_run(
                 on_segment(i, total)
             continue
 
+        if sel.kind == "image_montage":
+            image_paths = [
+                downloader.fetch_sync(u, kind="image")
+                for u in sel.montage_urls
+            ]
+            args = build_montage_args(
+                image_paths=[str(p) for p in image_paths],
+                output_path=str(seg_out),
+                target_w=target_w,
+                target_h=target_h,
+                target_fps=target_fps,
+            )
+            run_ffmpeg(args)
+            segment_paths.append(seg_out)
+            last_segment = seg_out
+            if on_segment:
+                on_segment(i, total)
+            continue
+
         input_path = _fetch_for(downloader, sel)
         plan = plan_segment(sel)
 

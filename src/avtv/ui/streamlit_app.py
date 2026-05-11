@@ -311,6 +311,44 @@ elif mode == "run":
         if rd.has(RunDir.SELECTIONS):
             sels_path = rd.path / RunDir.SELECTIONS
             current = sels_path.read_text(encoding="utf-8")
+
+            try:
+                sels_data = json.loads(current)
+            except json.JSONDecodeError:
+                st.warning(
+                    "Preview unavailable: JSON is invalid (still editable below)"
+                )
+            else:
+                with st.expander(
+                    f"Preview ({len(sels_data)} selections)", expanded=False
+                ):
+                    for sel in sels_data:
+                        idx = sel.get("idx")
+                        kind = sel.get("kind")
+                        if kind == "image_montage":
+                            urls = sel.get("montage_urls", [])
+                            sources = sel.get("montage_sources", [])
+                            st.caption(f"{idx:03d} · image_montage")
+                            if urls:
+                                cols = st.columns(len(urls))
+                                for col, u, s in zip(
+                                    cols, urls, sources, strict=False
+                                ):
+                                    with col:
+                                        st.image(u, width=140)
+                                        st.caption(s)
+                        elif kind == "continuation":
+                            st.caption(
+                                f"{idx:03d} · continuation (extends previous)"
+                            )
+                        elif kind in ("video", "image"):
+                            url = sel.get("url", "")
+                            source = sel.get("source", "")
+                            st.caption(f"{idx:03d} · {kind} · {source}")
+                            if url:
+                                st.image(url, width=180)
+                        st.markdown("---")
+
             st.caption("Edit `04_selections.json` directly. Re-run assemble after saving.")
             edited = st.text_area(
                 "selections", current, height=500, label_visibility="collapsed"

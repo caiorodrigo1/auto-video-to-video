@@ -36,6 +36,20 @@ class SearchOrchestrator:
         fallback = await self._search_all(brief.fallback_query, media_kind)
         return dedupe_candidates(fallback)
 
+    async def search_images_for_brief(self, brief: VisualBrief) -> list[Candidate]:
+        """Search images using the brief's queries. Used by the selector for
+        image_montage fallback (continuation briefs OR video pool exhausted).
+
+        Always queries 'image' adapters regardless of brief.kind. Tries
+        query_en first, then fallback_query. Empty if no image adapters or
+        both queries return nothing.
+        """
+        primary = await self._search_all(brief.query_en, "image")
+        if primary:
+            return dedupe_candidates(primary)
+        fallback = await self._search_all(brief.fallback_query, "image")
+        return dedupe_candidates(fallback)
+
     async def search_for_briefs(
         self, briefs: list[VisualBrief], concurrency: int = 5
     ) -> dict[int, list[Candidate]]:

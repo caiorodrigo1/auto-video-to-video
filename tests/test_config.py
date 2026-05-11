@@ -31,3 +31,21 @@ def test_settings_default_provider_override(monkeypatch):
 
     s = Settings()
     assert s.default_llm_provider == "gpt"
+
+
+def test_settings_defines_image_montage_knobs(monkeypatch):
+    for k in [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "PEXELS_API_KEY",
+        "PIXABAY_API_KEY",
+        "UNSPLASH_API_KEY",
+    ]:
+        monkeypatch.setenv(k, "x")
+    from avtv.config import Settings
+
+    s = Settings()
+    assert s.image_montage_max == 3
+    # Removed (dead after Task 3 introduced global URL dedup):
+    assert not hasattr(s, "repetition_penalty")
+    assert not hasattr(s, "neighbor_window")

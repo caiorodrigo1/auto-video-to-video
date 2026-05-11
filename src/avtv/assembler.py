@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 # Signature: (current_index, total) — both 1-based for display.
 ProgressCallback = Callable[[int, int], None]
 
-Strategy = Literal["speed", "loop", "trim", "ken_burns", "continuation"]
+Strategy = Literal["speed", "loop", "trim", "ken_burns", "image_montage", "continuation"]
 ATEMPO_MIN = 0.5
 ATEMPO_MAX = 2.0
 
@@ -31,6 +31,8 @@ class SegmentPlan:
 def plan_segment(sel: Selection) -> SegmentPlan:
     if sel.kind == "continuation":
         return SegmentPlan(strategy="continuation", use_clip_audio=False)
+    if sel.kind == "image_montage":
+        return SegmentPlan(strategy="image_montage", use_clip_audio=False)
     if sel.kind == "image":
         return SegmentPlan(strategy="ken_burns", use_clip_audio=False)
     if sel.loop:
@@ -66,6 +68,10 @@ def build_segment_args(
     clip_audio_db: float,
 ) -> list[str]:
     """Construct ffmpeg argv (without leading 'ffmpeg') for one segment."""
+    if plan.strategy == "image_montage":
+        raise ValueError(
+            "image_montage uses build_montage_args (multiple inputs), not build_segment_args"
+        )
     if plan.strategy == "loop":
         return _loop_args(input_path, output_path, target_w, target_h, target_fps)
     if plan.strategy == "trim":
@@ -246,6 +252,57 @@ def _ken_burns_args(
     ]
 
 
+def build_montage_args(
+    image_paths: list[str],
+    output_path: str,
+    target_w: int,
+    target_h: int,
+    target_fps: int,
+) -> list[str]:
+    """Render N images (1 <= N <= image_montage_max) as one BLOCK_DURATION-second
+    segment: each image gets BLOCK_DURATION/N seconds with Ken Burns, then
+    concatenated. Caller passes already-downloaded local image paths.
+    """
+    n = len(image_paths)
+    if n == 0:
+        raise ValueError("build_montage_args requires at least one image")
+    total_frames = int(BLOCK_DURATION * target_fps)
+    frames_per = total_frames // n
+    zoom_step = 0.15 / max(frames_per, 1)
+
+    filter_parts: list[str] = []
+    for i in range(n):
+        filter_parts.append(
+            f"[{i}:v]zoompan=z='min(zoom+{zoom_step:.5f},1.15)':"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={frames_per}:s={target_w}x{target_h}:fps={target_fps}"
+            f"[v{i}]"
+        )
+    concat_inputs = "".join(f"[v{i}]" for i in range(n))
+    filter_complex = ";".join(filter_parts) + f";{concat_inputs}concat=n={n}:v=1:a=0[out]"
+
+    args = ["-y"]
+    for p in image_paths:
+        args += ["-loop", "1", "-i", p]
+    args += [
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[out]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-an",
+        "-t",
+        f"{BLOCK_DURATION}",
+        "-f",
+        "mpegts",
+        output_path,
+    ]
+    return args
+
+
 class FFmpegError(RuntimeError):
     pass
 
@@ -369,6 +426,25 @@ def assemble_run(
         seg_out = work_dir / f"segment_{sel.idx:04d}.ts"
         if seg_out.exists() and seg_out.stat().st_size > 0:
             # Segment already encoded — reuse (re-runs after crash are cheap).
+            segment_paths.append(seg_out)
+            last_segment = seg_out
+            if on_segment:
+                on_segment(i, total)
+            continue
+
+        if sel.kind == "image_montage":
+            image_paths = [
+                downloader.fetch_sync(u, kind="image")
+                for u in sel.montage_urls
+            ]
+            args = build_montage_args(
+                image_paths=[str(p) for p in image_paths],
+                output_path=str(seg_out),
+                target_w=target_w,
+                target_h=target_h,
+                target_fps=target_fps,
+            )
+            run_ffmpeg(args)
             segment_paths.append(seg_out)
             last_segment = seg_out
             if on_segment:

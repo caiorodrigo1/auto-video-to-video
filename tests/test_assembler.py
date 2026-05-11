@@ -199,3 +199,51 @@ def test_validate_continuations_accepts_normal_run():
         _sel(idx=3, url="B"),
     ]
     validate_continuations(ok)  # no raise
+
+
+def test_plan_image_montage():
+    sel = Selection(
+        idx=4, source="", url="", kind="image_montage",
+        montage_urls=["https://a/1.jpg", "https://a/2.jpg", "https://a/3.jpg"],
+        montage_sources=["pixabay", "pixabay", "wikimedia"],
+    )
+    plan = plan_segment(sel)
+    assert plan.strategy == "image_montage"
+    assert plan.use_clip_audio is False
+
+
+def test_build_args_image_montage_three_images():
+    from avtv.assembler import build_montage_args
+    args = build_montage_args(
+        image_paths=["/a.jpg", "/b.jpg", "/c.jpg"],
+        output_path="/out.ts",
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+    )
+    cmd = " ".join(args)
+    # All three inputs are passed with -loop 1
+    assert cmd.count("-loop 1") == 3
+    assert "/a.jpg" in cmd and "/b.jpg" in cmd and "/c.jpg" in cmd
+    # filter_complex with 3 zoompan + concat
+    assert "zoompan" in cmd
+    assert "concat=n=3:v=1:a=0" in cmd
+    assert "-t 8.0" in cmd
+    assert "-an" in cmd  # no clip audio
+    # frames per image: 30fps * 8s / 3 = 80
+    assert "d=80" in cmd
+
+
+def test_build_args_image_montage_two_images_split_evenly():
+    from avtv.assembler import build_montage_args
+    args = build_montage_args(
+        image_paths=["/a.jpg", "/b.jpg"],
+        output_path="/o.ts",
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+    )
+    cmd = " ".join(args)
+    assert "concat=n=2:v=1:a=0" in cmd
+    # 30fps * 8s / 2 = 120 frames each
+    assert "d=120" in cmd

@@ -16,7 +16,7 @@ class Block(BaseModel):
         return cls(idx=idx, start=start, end=end, text=text, is_empty=not stripped)
 
 
-VisualKind = Literal["video", "image", "continuation"]
+VisualKind = Literal["video", "image", "image_montage", "continuation"]
 MediaKind = Literal["video", "image"]
 
 
@@ -24,7 +24,7 @@ class VisualBrief(BaseModel):
     idx: int
     query_en: str
     fallback_query: str
-    kind: VisualKind
+    kind: Literal["video", "image", "continuation"]  # LLM never emits image_montage
     continuity_hint: str | None = None
     notes: str | None = None
 
@@ -51,3 +51,6 @@ class Selection(BaseModel):
     speed_factor: float | None = None
     loop: bool = False
     attribution: str | None = None
+    # For kind == "image_montage" only. Order matches display order (left-to-right).
+    montage_urls: list[str] = []
+    montage_sources: list[str] = []

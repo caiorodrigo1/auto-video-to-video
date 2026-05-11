@@ -190,8 +190,8 @@ clip; everything else is reused.
 | **parse** | `01_blocks.json` | Splits DOTTI SYNC into typed `Block` records. |
 | **brief** | `02_visual_briefs.json` | LLM (Claude / GPT) reads the full script and emits one English search query + fallback per block, plus `kind` (`video` / `image` / `continuation`). |
 | **search** | `03_search_results.json` | All five adapters (Pexels, Pixabay, Internet Archive, Wikimedia, Unsplash) run in parallel. Falls back to the LLM's `fallback_query` if the primary returns nothing. |
-| **select** | `04_selections.json` | Scores candidates by aspect ratio, duration fit, resolution, and source. Dedupes against ±2 neighbors so the same clip doesn't repeat back-to-back. |
-| **assemble** | `output.mp4` | Downloads each picked clip (cached), encodes one 8s `.ts` segment per block (speed-match / trim / loop / Ken Burns), then concats and muxes with the narration. |
+| **select** | `04_selections.json` | Scores candidates by aspect ratio, duration fit, resolution, and source. **Globally dedupes URLs** so no clip ever appears twice in one video. **Empty/continuation blocks** become a 3-image Ken Burns montage (`image_montage` kind) using on-demand image search; if image search yields a single image it falls back to one Ken Burns; if it yields nothing it extends the previous clip. |
+| **assemble** | `output.mp4` | Downloads each picked clip (cached), encodes one 8s `.ts` segment per block (speed-match / trim / loop / Ken Burns / **3-image montage**), then concats and muxes with the narration. |
 
 Output spec: 1920×1080, 30 fps, H.264 + AAC, hard cuts, narration audio
 only. (Clip audio mix at -20 dB was specified but is currently disabled —

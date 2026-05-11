@@ -43,3 +43,72 @@ def test_assemble_run_invokes_ffmpeg_for_each_segment(tmp_path):
         )
         # 2 segment encodes + 1 final mux = 3 ffmpeg calls
         assert mock_run.call_count == 3
+
+
+def test_assemble_run_handles_image_montage(tmp_path):
+    selections = [
+        Selection(
+            idx=1,
+            source="pexels",
+            url="https://x/v1.mp4",
+            kind="video",
+            speed_factor=1.0,
+        ),
+        Selection(
+            idx=2,
+            source="",
+            url="",
+            kind="image_montage",
+            montage_urls=[
+                "https://x/a.jpg",
+                "https://x/b.jpg",
+                "https://x/c.jpg",
+            ],
+            montage_sources=["pixabay", "pixabay", "wikimedia"],
+        ),
+    ]
+
+    fetched: list[tuple[str, str]] = []
+    fake_dl = MagicMock()
+
+    def _fetch(url, kind):
+        fetched.append((url, kind))
+        p = tmp_path / f"dl_{len(fetched)}.bin"
+        p.write_bytes(b"")
+        return p
+
+    fake_dl.fetch_sync = MagicMock(side_effect=_fetch)
+
+    narration = tmp_path / "n.mp3"
+    narration.write_bytes(b"")
+    out = tmp_path / "out.mp4"
+    work_dir = tmp_path / "work"
+
+    with patch("avtv.assembler.run_ffmpeg") as mock_run:
+        assemble_run(
+            selections=selections,
+            narration_path=narration,
+            output_path=out,
+            work_dir=work_dir,
+            downloader=fake_dl,
+            target_w=1920,
+            target_h=1080,
+            target_fps=30,
+            clip_audio_db=-20.0,
+        )
+
+    # Block 1 fetches the video; block 2 fetches all 3 montage images.
+    assert fetched[0] == ("https://x/v1.mp4", "video")
+    montage_fetches = {(u, k) for u, k in fetched[1:]}
+    assert montage_fetches == {
+        ("https://x/a.jpg", "image"),
+        ("https://x/b.jpg", "image"),
+        ("https://x/c.jpg", "image"),
+    }
+
+    # ffmpeg called once per segment (2) + once for the final mux = 3
+    assert mock_run.call_count == 3
+    montage_argv = mock_run.call_args_list[1].args[0]
+    cmd = " ".join(montage_argv)
+    assert "concat=n=3:v=1:a=0" in cmd
+    assert "-t 8.0" in cmd

@@ -46,7 +46,7 @@ def _extract_via_gpt(blocks: list[Block], settings: Settings) -> str:
             {"role": "system", "content": TOPIC_SYSTEM_PROMPT},
             {"role": "user", "content": _blocks_to_user_msg(blocks)},
         ],
-        max_tokens=128,
+        max_completion_tokens=128,
     )
     content = response.choices[0].message.content
     if not content:

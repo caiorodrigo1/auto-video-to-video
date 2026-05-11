@@ -25,6 +25,31 @@ arc and variation. Output strictly conforms to the provided JSON schema.
 """
 
 
+_TOPIC_CLAUSE = """\
+VIDEO TOPIC: {topic}
+
+The above is the overall theme of this documentary. Use it to disambiguate
+proper nouns and enrich vague queries. For example, in a video about
+classic cars, the query for a block mentioning "Maverick" should be
+something like "Ford Maverick 1970 muscle car" — NOT just "Maverick"
+(which would match the Top Gun aircraft). Do not mechanically prefix every
+query with the topic; only add context where the query would otherwise be
+ambiguous or too generic.
+
+"""
+
+
+def build_system_prompt(topic: str | None) -> str:
+    """Build the brief-stage system prompt, optionally prefixed with a topic clause.
+
+    Empty/whitespace-only `topic` is treated as None and returns the legacy
+    prompt unchanged.
+    """
+    if topic is None or not topic.strip():
+        return SYSTEM_PROMPT
+    return _TOPIC_CLAUSE.format(topic=topic.strip()) + SYSTEM_PROMPT
+
+
 def build_user_message(blocks: list[Block]) -> str:
     lines: list[str] = ["Here is the full script:\n"]
     for b in blocks:

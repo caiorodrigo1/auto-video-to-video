@@ -99,3 +99,27 @@ def test_selection_montage_defaults_empty():
 def test_selection_rejects_unknown_kind():
     with pytest.raises(ValidationError):
         Selection(idx=1, source="", url="", kind="image_carousel")
+
+
+def test_topic_model_round_trip():
+    from avtv.models import Topic
+
+    t = Topic(
+        topic="Classic American muscle cars of the 1970s",
+        llm_suggestion="Classic American muscle cars of the 1970s",
+        source="user",
+    )
+    assert t.topic == "Classic American muscle cars of the 1970s"
+    assert t.source == "user"
+    dumped = t.model_dump()
+    reloaded = Topic.model_validate(dumped)
+    assert reloaded == t
+
+
+def test_topic_rejects_invalid_source():
+    from avtv.models import Topic
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Topic(topic="x", llm_suggestion="x", source="cosmic")

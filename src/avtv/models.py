@@ -54,3 +54,9 @@ class Selection(BaseModel):
     # For kind == "image_montage" only. Order matches display order (left-to-right).
     montage_urls: list[str] = []
     montage_sources: list[str] = []
+
+
+class Topic(BaseModel):
+    topic: str
+    llm_suggestion: str
+    source: Literal["user", "llm"]

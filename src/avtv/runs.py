@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from avtv.models import Block, Candidate, Selection, VisualBrief
+from avtv.models import Block, Candidate, Selection, Topic, VisualBrief
 
 
 class RunDir:
@@ -14,6 +14,7 @@ class RunDir:
     BRIEFS = "02_visual_briefs.json"
     SEARCH = "03_search_results.json"
     SELECTIONS = "04_selections.json"
+    TOPIC = "00_topic.json"
 
     def __init__(self, base_dir: Path, run_id: str) -> None:
         self.base_dir = Path(base_dir)
@@ -73,6 +74,19 @@ class RunDir:
 
     def load_selections(self) -> list[Selection]:
         return self._load_models(self.SELECTIONS, Selection)
+
+    def save_topic(self, topic: Topic) -> None:
+        (self.path / self.TOPIC).write_text(
+            json.dumps(topic.model_dump(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def load_topic(self) -> Topic:
+        raw = json.loads((self.path / self.TOPIC).read_text(encoding="utf-8"))
+        return Topic.model_validate(raw)
+
+    def has_topic(self) -> bool:
+        return (self.path / self.TOPIC).exists()
 
     def has(self, name: str) -> bool:
         return (self.path / name).exists()

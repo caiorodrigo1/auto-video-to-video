@@ -30,6 +30,7 @@ st.set_page_config(page_title="auto-video-to-video", layout="wide")
 
 STAGES = [
     ("Parse", RunDir.BLOCKS),
+    ("Topic", RunDir.TOPIC),
     ("Brief", RunDir.BRIEFS),
     ("Search", RunDir.SEARCH),
     ("Select", RunDir.SELECTIONS),
@@ -84,10 +85,26 @@ def _run_stage_parse(rd: RunDir, script_path: Path) -> int:
     return len(blocks)
 
 
+def _run_stage_topic_extract(rd: RunDir, provider_name: str, settings: Settings) -> str:
+    """Run the LLM topic detector. Returns the suggested topic string."""
+    from avtv.briefing.topic import extract_topic_via_llm
+
+    blocks = rd.load_blocks()
+    return extract_topic_via_llm(blocks, provider_name=provider_name, settings=settings)
+
+
+def _run_stage_topic_save(rd: RunDir, topic: str, suggested: str) -> None:
+    from avtv.models import Topic
+
+    source = "user" if topic.strip() != suggested.strip() else "llm"
+    rd.save_topic(Topic(topic=topic.strip(), llm_suggestion=suggested, source=source))
+
+
 def _run_stage_brief(rd: RunDir, provider_name: str) -> int:
     blocks = rd.load_blocks()
     llm = get_provider(provider_name)
-    briefs = llm.generate_briefs(blocks)
+    topic_str = rd.load_topic().topic if rd.has_topic() else None
+    briefs = llm.generate_briefs(blocks, topic=topic_str)
     rd.save_briefs(briefs)
     return len(briefs)
 
@@ -105,7 +122,15 @@ def _run_stage_search(rd: RunDir, settings: Settings) -> int:
 def _run_stage_select(rd: RunDir, settings: Settings) -> int:
     briefs = rd.load_briefs()
     candidates = rd.load_search_results()
-    sels = select_per_block(briefs, candidates, settings=settings)
+    orch = _build_orchestrator(settings)
+    sels = asyncio.run(
+        select_per_block(
+            briefs,
+            candidates,
+            settings=settings,
+            image_search=orch.search_images_for_brief,
+        )
+    )
     rd.save_selections(sels)
     return len(sels)
 
@@ -217,56 +242,93 @@ if mode == "new":
         )
         custom_id = st.text_input("Run ID (optional)", placeholder="auto-generated")
 
-    can_build = audio_file is not None and script_file is not None
+    files_ready = audio_file is not None and script_file is not None
 
-    if st.button("▶ Start build", type="primary", disabled=not can_build):
-        rd = (
-            RunDir(base_dir=runs_base, run_id=custom_id)
-            if custom_id
-            else RunDir.new(runs_base)
-        )
-        rd.ensure()
-        audio_path, script_path = _save_uploads(rd, audio_file, script_file)
-
-        with st.status("Running pipeline…", expanded=True) as status:
-            st.write(f"**Run ID:** `{rd.run_id}`")
-
-            st.write("📄 **Parse**")
-            n_blocks = _run_stage_parse(rd, script_path)
-            st.write(f"  → {n_blocks} blocks")
-
-            st.write(f"🧠 **Brief** (via {provider})")
-            n_briefs = _run_stage_brief(rd, provider)
-            st.write(f"  → {n_briefs} briefs")
-
-            st.write("🔍 **Search**")
-            n_cands = _run_stage_search(rd, settings)
-            st.write(f"  → {n_cands} candidates")
-
-            st.write("🎯 **Select**")
-            n_sels = _run_stage_select(rd, settings)
-            st.write(f"  → {n_sels} clips")
-
-            st.write("🎬 **Assemble** (download + ffmpeg)")
-            seg_bar = st.progress(0.0, text="Encoding segments…")
-
-            def on_segment(i: int, total: int) -> None:
-                seg_bar.progress(i / total, text=f"Segment {i}/{total}")
-
-            def on_mux() -> None:
-                seg_bar.progress(1.0, text="Muxing final MP4…")
-
-            out_path = _run_stage_assemble(
-                rd, audio_path, settings, on_segment=on_segment, on_mux=on_mux
+    # Phase 1: files uploaded but topic not yet detected.
+    if files_ready and "pending_topic_run" not in st.session_state:
+        if st.button("📑 Detect topic", type="primary"):
+            rd = (
+                RunDir(base_dir=runs_base, run_id=custom_id)
+                if custom_id
+                else RunDir.new(runs_base)
             )
-            seg_bar.empty()
-            st.write(f"  → {out_path}")
+            rd.ensure()
+            audio_path, script_path = _save_uploads(rd, audio_file, script_file)
+            with st.spinner("Parsing & detecting topic…"):
+                _run_stage_parse(rd, script_path)
+                suggested = _run_stage_topic_extract(rd, provider, settings)
+            st.session_state["pending_topic_run"] = {
+                "run_id": rd.run_id,
+                "audio_path": str(audio_path),
+                "suggested_topic": suggested,
+                "provider": provider,
+            }
+            st.rerun()
 
-            status.update(label="✅ Build complete", state="complete")
+    # Phase 2: topic suggested, awaiting confirmation.
+    if "pending_topic_run" in st.session_state:
+        ctx = st.session_state["pending_topic_run"]
+        st.info(f"Run ID: `{ctx['run_id']}`")
+        st.markdown(f"**Suggested topic:** {ctx['suggested_topic']}")
+        confirmed_topic = st.text_input(
+            "Confirm or edit the topic",
+            value=ctx["suggested_topic"],
+            key="confirmed_topic_field",
+        )
 
-        st.session_state["run_id"] = rd.run_id
-        st.session_state["mode"] = "run"
-        st.rerun()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            cancel = st.button("✖ Cancel")
+        with col_b:
+            go = st.button("▶ Start build", type="primary")
+
+        if cancel:
+            st.session_state.pop("pending_topic_run", None)
+            st.rerun()
+
+        if go:
+            rd = RunDir(base_dir=runs_base, run_id=ctx["run_id"])
+            _run_stage_topic_save(rd, confirmed_topic, ctx["suggested_topic"])
+            audio_path = Path(ctx["audio_path"])
+            chosen_provider = ctx["provider"]
+
+            with st.status("Running pipeline…", expanded=True) as status:
+                st.write(f"**Run ID:** `{rd.run_id}`")
+                st.write(f"📑 Topic: `{confirmed_topic}`")
+
+                st.write(f"🧠 **Brief** (via {chosen_provider})")
+                n_briefs = _run_stage_brief(rd, chosen_provider)
+                st.write(f"  → {n_briefs} briefs")
+
+                st.write("🔍 **Search**")
+                n_cands = _run_stage_search(rd, settings)
+                st.write(f"  → {n_cands} candidates")
+
+                st.write("🎯 **Select**")
+                n_sels = _run_stage_select(rd, settings)
+                st.write(f"  → {n_sels} clips")
+
+                st.write("🎬 **Assemble** (download + ffmpeg)")
+                seg_bar = st.progress(0.0, text="Encoding segments…")
+
+                def on_segment(i: int, total: int) -> None:
+                    seg_bar.progress(i / total, text=f"Segment {i}/{total}")
+
+                def on_mux() -> None:
+                    seg_bar.progress(1.0, text="Muxing final MP4…")
+
+                out_path = _run_stage_assemble(
+                    rd, audio_path, settings, on_segment=on_segment, on_mux=on_mux
+                )
+                seg_bar.empty()
+                st.write(f"  → {out_path}")
+
+                status.update(label="✅ Build complete", state="complete")
+
+            st.session_state["run_id"] = rd.run_id
+            st.session_state["mode"] = "run"
+            st.session_state.pop("pending_topic_run", None)
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------

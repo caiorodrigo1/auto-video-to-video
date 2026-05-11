@@ -52,6 +52,10 @@ def test_extract_topic_via_gpt(monkeypatch):
         topic = extract_topic_via_llm(_blocks(), provider_name="gpt", settings=Settings())
 
     assert topic == "Classic American muscle cars of the 1970s"
+    # GPT-5 rejects 'max_tokens'; must send 'max_completion_tokens' instead.
+    call_kwargs = MockOAI.return_value.chat.completions.create.call_args.kwargs
+    assert "max_completion_tokens" in call_kwargs
+    assert "max_tokens" not in call_kwargs
 
 
 def test_extract_topic_strips_whitespace(monkeypatch):

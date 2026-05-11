@@ -36,3 +36,38 @@ def test_parse_creates_blocks_json(tmp_path: Path, monkeypatch: object) -> None:
     )
     assert r.exit_code == 0, r.stdout
     assert (runs / "test-run" / "01_blocks.json").exists()
+
+
+def test_cli_topic_non_interactive_saves_run_artifact(tmp_path, monkeypatch):
+    """`avtv topic --run-id X --topic "..."` writes 00_topic.json without LLM call."""
+    from typer.testing import CliRunner
+
+    for k in [
+        "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+        "PEXELS_API_KEY", "PIXABAY_API_KEY", "UNSPLASH_API_KEY",
+    ]:
+        monkeypatch.setenv(k, "x")
+
+    from avtv.cli import app
+    from avtv.models import Block
+    from avtv.runs import RunDir
+
+    rd = RunDir(base_dir=tmp_path, run_id="r1")
+    rd.ensure()
+    rd.save_blocks([Block.from_text(1, 0.0, 8.0, "hello")])
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "topic",
+            "--run-id", "r1",
+            "--runs-dir", str(tmp_path),
+            "--topic", "Test theme",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert rd.has_topic()
+    t = rd.load_topic()
+    assert t.topic == "Test theme"
+    assert t.source == "user"

@@ -7,8 +7,8 @@ and stitches everything together with ffmpeg, synced to your narration.
 
 ```
 input/audio.mp3 ─┐
-                 ├─► parse ─► brief ─► search ─► select ─► assemble ─► output.mp4
-input/script.txt ┘            (LLM)   (5 APIs)            (ffmpeg)
+                 ├─► parse ─► topic ─► brief ─► search ─► select ─► assemble ─► output.mp4
+input/script.txt ┘        (LLM+you)  (LLM)    (5 APIs)            (ffmpeg)
 ```
 
 **Status — MVP.** Single user, runs locally, free sources only. No paid
@@ -188,7 +188,8 @@ clip; everything else is reused.
 | Stage | Output | Notes |
 |---|---|---|
 | **parse** | `01_blocks.json` | Splits DOTTI SYNC into typed `Block` records. |
-| **brief** | `02_visual_briefs.json` | LLM (Claude / GPT) reads the full script and emits one English search query + fallback per block, plus `kind` (`video` / `image` / `continuation`). |
+| **topic** | `00_topic.json` | LLM proposes the video's overall theme in one sentence. You confirm or edit before the brief stage runs. The confirmed theme is injected into the brief system prompt so queries become topic-aware (e.g. `"Maverick"` in a classic-cars video becomes `"Ford Maverick muscle car 1970"` and no longer matches the Top Gun aircraft). |
+| **brief** | `02_visual_briefs.json` | LLM (Claude / GPT) reads the full script and emits one English search query + fallback per block, plus `kind` (`video` / `image` / `continuation`). Uses the confirmed topic for disambiguation. |
 | **search** | `03_search_results.json` | All five adapters (Pexels, Pixabay, Internet Archive, Wikimedia, Unsplash) run in parallel. Falls back to the LLM's `fallback_query` if the primary returns nothing. |
 | **select** | `04_selections.json` | Scores candidates by aspect ratio, duration fit, resolution, and source. **Globally dedupes URLs** so no clip ever appears twice in one video. **Empty/continuation blocks** become a 3-image Ken Burns montage (`image_montage` kind) using on-demand image search; if image search yields a single image it falls back to one Ken Burns; if it yields nothing it extends the previous clip. |
 | **assemble** | `output.mp4` | Downloads each picked clip (cached), encodes one 8s `.ts` segment per block (speed-match / trim / loop / Ken Burns / **3-image montage**), then concats and muxes with the narration. |

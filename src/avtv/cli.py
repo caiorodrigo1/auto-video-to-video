@@ -1,14 +1,17 @@
 import asyncio
 import shutil
 from pathlib import Path
+from typing import Literal
 
 import typer
 from rich.console import Console
 
 from avtv.assembler import assemble_run
 from avtv.briefing import get_provider
+from avtv.briefing.topic import extract_topic_via_llm
 from avtv.config import Settings
 from avtv.downloader import Downloader
+from avtv.models import Topic
 from avtv.parser import parse_script
 from avtv.runs import RunDir
 from avtv.search.archive_org import ArchiveOrgAdapter
@@ -66,9 +69,55 @@ def brief(
     blocks = rd.load_blocks()
     name = provider or settings.default_llm_provider
     llm = get_provider(name)
-    briefs = llm.generate_briefs(blocks)
+    topic_str = rd.load_topic().topic if rd.has_topic() else None
+    briefs = llm.generate_briefs(blocks, topic=topic_str)
     rd.save_briefs(briefs)
     console.print(f"[green]briefed[/green] via {name}: {len(briefs)} briefs")
+
+
+@app.command()
+def topic(
+    run_id: str = typer.Option(..., help="Existing run id"),  # noqa: B008
+    runs_dir: str | None = typer.Option(None),  # noqa: B008
+    provider: str | None = typer.Option(None, help="claude | gpt"),  # noqa: B008
+    topic: str | None = typer.Option(  # noqa: B008
+        None,
+        "--topic",
+        help="Skip LLM detection and save this topic verbatim (non-interactive).",
+    ),
+) -> None:
+    """Stage 1.5: detect (or set) the video's overall topic.
+
+    Interactive: runs the LLM, prints the suggestion, waits for user input.
+    Non-interactive (--topic "..."): saves the given topic and exits.
+    """
+    settings = Settings()  # type: ignore[call-arg]
+    rd = RunDir(base_dir=_runs_dir(runs_dir), run_id=run_id)
+    blocks = rd.load_blocks()
+    name = provider or settings.default_llm_provider
+
+    if topic is not None:
+        # Non-interactive path: save the provided topic and exit.
+        record = Topic(topic=topic, llm_suggestion=topic, source="user")
+        rd.save_topic(record)
+        console.print(f"[green]topic saved (non-interactive)[/green]: {topic}")
+        return
+
+    suggested = extract_topic_via_llm(blocks, provider_name=name, settings=settings)
+    console.print(f"[bold]Suggested topic:[/bold] {suggested}")
+    typed = typer.prompt(
+        "Press Enter to accept, or type a replacement",
+        default=suggested,
+        show_default=False,
+    ).strip()
+
+    final = typed if typed else suggested
+    source: Literal["user", "llm"] = (
+        "user" if typed and typed != suggested else "llm"
+    )
+    record = Topic(topic=final, llm_suggestion=suggested, source=source)
+    rd.save_topic(record)
+    console.print(f"[green]topic saved[/green]: {final}  ({source})")
 
 
 @app.command()
@@ -148,8 +197,13 @@ def build(
     run_id: str | None = typer.Option(None),  # noqa: B008
     runs_dir: str | None = typer.Option(None),  # noqa: B008
     cache_dir: str | None = typer.Option(None),  # noqa: B008
+    topic: str | None = typer.Option(  # noqa: B008
+        None,
+        "--topic",
+        help="Skip LLM topic detection; use this string verbatim.",
+    ),
 ) -> None:
-    """Run the full pipeline: parse → brief → search → select → assemble."""
+    """Run the full pipeline: parse → topic → brief → search → select → assemble."""
     settings = Settings()  # type: ignore[call-arg]
     base = _runs_dir(runs_dir)
     rd = RunDir(base_dir=base, run_id=run_id) if run_id else RunDir.new(base)
@@ -162,8 +216,31 @@ def build(
     console.print(f"  parsed {len(blocks)} blocks")
 
     name = provider or settings.default_llm_provider
+
+    if topic is not None:
+        rec = Topic(topic=topic, llm_suggestion=topic, source="user")
+        rd.save_topic(rec)
+        console.print(f"  topic (non-interactive): {topic}")
+        topic_str: str | None = topic
+    else:
+        suggested = extract_topic_via_llm(blocks, provider_name=name, settings=settings)
+        console.print(f"  suggested topic: {suggested}")
+        typed = typer.prompt(
+            "Press Enter to accept, or type a replacement",
+            default=suggested,
+            show_default=False,
+        ).strip()
+        final = typed if typed else suggested
+        source: Literal["user", "llm"] = (
+            "user" if typed and typed != suggested else "llm"
+        )
+        rec = Topic(topic=final, llm_suggestion=suggested, source=source)
+        rd.save_topic(rec)
+        console.print(f"  topic confirmed: {final}  ({source})")
+        topic_str = final
+
     llm = get_provider(name)
-    briefs = llm.generate_briefs(blocks)
+    briefs = llm.generate_briefs(blocks, topic=topic_str)
     rd.save_briefs(briefs)
     console.print(f"  briefed via {name}")
 
@@ -213,6 +290,7 @@ def runs(runs_dir: str | None = typer.Option(None)) -> None:  # noqa: B008
         stages = []
         for name, label in [
             (RunDir.BLOCKS, "parse"),
+            (RunDir.TOPIC, "topic"),
             (RunDir.BRIEFS, "brief"),
             (RunDir.SEARCH, "search"),
             (RunDir.SELECTIONS, "select"),
@@ -231,6 +309,7 @@ def inspect(run_id: str, runs_dir: str | None = typer.Option(None)) -> None:  # 
         raise typer.Exit(1)
     for name, label in [
         (RunDir.BLOCKS, "blocks"),
+        (RunDir.TOPIC, "topic"),
         (RunDir.BRIEFS, "briefs"),
         (RunDir.SEARCH, "search results"),
         (RunDir.SELECTIONS, "selections"),

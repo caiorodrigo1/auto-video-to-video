@@ -76,3 +76,31 @@ def test_claude_provider_raises_on_count_mismatch(mock_anthropic_response, monke
         provider = ClaudeProvider()
         with pytest.raises(ValueError, match="count mismatch"):
             provider.generate_briefs(blocks)
+
+
+def test_claude_provider_threads_topic_into_system_prompt(mock_anthropic_response, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("PEXELS_API_KEY", "x")
+    monkeypatch.setenv("PIXABAY_API_KEY", "x")
+    monkeypatch.setenv("UNSPLASH_API_KEY", "x")
+
+    blocks = [
+        Block.from_text(1, 0.0, 8.0, "x"),
+        Block.from_text(2, 8.0, 16.0, "y"),
+    ]
+
+    with patch("avtv.briefing.claude.Anthropic") as MockClient:
+        instance = MockClient.return_value
+        instance.messages.create.return_value = mock_anthropic_response
+
+        provider = ClaudeProvider()
+        provider.generate_briefs(blocks, topic="Classic muscle cars of the 1970s")
+
+    call = instance.messages.create.call_args
+    system_arg = call.kwargs["system"]
+    # `system` is a list with one cache_control block containing text.
+    assert isinstance(system_arg, list)
+    system_text = system_arg[0]["text"]
+    assert "Classic muscle cars of the 1970s" in system_text
+    assert "RULES:" in system_text  # legacy rules still present

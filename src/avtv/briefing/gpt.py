@@ -2,7 +2,7 @@ import json
 
 from openai import OpenAI
 
-from avtv.briefing.prompt import SYSTEM_PROMPT, build_user_message
+from avtv.briefing.prompt import build_system_prompt, build_user_message
 from avtv.briefing.schema import BRIEF_TOOL_SCHEMA, parse_briefs_response
 from avtv.config import Settings
 from avtv.models import Block, VisualBrief
@@ -13,13 +13,17 @@ class OpenAIProvider:
         self.settings = settings or Settings()  # type: ignore[call-arg]
         self.client = OpenAI(api_key=self.settings.openai_api_key)
 
-    def generate_briefs(self, blocks: list[Block]) -> list[VisualBrief]:
+    def generate_briefs(
+        self,
+        blocks: list[Block],
+        topic: str | None = None,
+    ) -> list[VisualBrief]:
         user_msg = build_user_message(blocks)
 
         response = self.client.chat.completions.create(
             model=self.settings.gpt_model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": build_system_prompt(topic)},
                 {"role": "user", "content": user_msg},
             ],
             response_format={

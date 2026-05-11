@@ -6,11 +6,11 @@ from avtv.models import Candidate, Selection, VisualBrief
 ImageSearch = Callable[[VisualBrief], Awaitable[list[Candidate]]]
 
 SOURCE_PREFERENCE = {
-    "pexels": 0.30,
-    "pixabay": 0.25,
-    "archive_org": 0.20,
-    "wikimedia": 0.15,
-    "unsplash": 0.20,
+    "pexels": 1.00,
+    "pixabay": 0.30,
+    "archive_org": 0.30,
+    "wikimedia": 0.30,
+    "unsplash": 0.30,
 }
 
 

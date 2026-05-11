@@ -63,6 +63,25 @@ def test_score_short_clip_penalized(monkeypatch):
     assert short < perfect
 
 
+def test_pexels_strongly_preferred_over_other_sources(monkeypatch):
+    """Pexels has the most relevant keyword search; gap must be wide enough
+    that a Pexels candidate wins against same-spec candidates from other
+    sources. Regression guard: if anyone tightens SOURCE_PREFERENCE again,
+    the 'bacon for Hoover Dam' problem returns."""
+    s = _settings(monkeypatch)
+    pexels = _make(source="pexels")
+    pixabay = _make(source="pixabay")
+    wikimedia = _make(source="wikimedia")
+    pexels_score = score_candidate(pexels, settings=s)
+    other_max = max(
+        score_candidate(pixabay, settings=s),
+        score_candidate(wikimedia, settings=s),
+    )
+    # Gap must exceed any single non-source axis swing (worst-case 0.4 from
+    # duration band drop). 0.5 is the minimum margin that survives that.
+    assert pexels_score - other_max >= 0.5
+
+
 # -- selection: normal happy path ------------------------------------------
 
 @pytest.mark.asyncio

@@ -40,13 +40,18 @@ def _extract_via_claude(blocks: list[Block], settings: Settings) -> str:
 
 def _extract_via_gpt(blocks: list[Block], settings: Settings) -> str:
     client = OpenAI(api_key=settings.openai_api_key)
+    # gpt-5 is a reasoning model: it consumes tokens "thinking" before
+    # producing visible output. Use minimal reasoning effort for this
+    # one-sentence extraction task and give a generous completion budget
+    # so the visible answer isn't truncated by reasoning consumption.
     response = client.chat.completions.create(
         model=settings.gpt_model,
         messages=[
             {"role": "system", "content": TOPIC_SYSTEM_PROMPT},
             {"role": "user", "content": _blocks_to_user_msg(blocks)},
         ],
-        max_completion_tokens=128,
+        max_completion_tokens=1024,
+        reasoning_effort="minimal",
     )
     content = response.choices[0].message.content
     if not content:

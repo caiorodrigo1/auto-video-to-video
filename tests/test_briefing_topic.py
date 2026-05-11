@@ -56,6 +56,10 @@ def test_extract_topic_via_gpt(monkeypatch):
     call_kwargs = MockOAI.return_value.chat.completions.create.call_args.kwargs
     assert "max_completion_tokens" in call_kwargs
     assert "max_tokens" not in call_kwargs
+    # Reasoning model needs minimal effort + generous output budget so the
+    # visible content isn't truncated by reasoning token consumption.
+    assert call_kwargs["reasoning_effort"] == "minimal"
+    assert call_kwargs["max_completion_tokens"] >= 512
 
 
 def test_extract_topic_strips_whitespace(monkeypatch):

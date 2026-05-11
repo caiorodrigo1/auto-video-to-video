@@ -247,3 +247,38 @@ def test_build_args_image_montage_two_images_split_evenly():
     assert "concat=n=2:v=1:a=0" in cmd
     # 30fps * 8s / 2 = 120 frames each
     assert "d=120" in cmd
+
+
+def test_build_args_image_montage_uses_internal_upscale_for_smooth_zoom():
+    """Avoids ffmpeg zoompan sub-pixel jitter by rendering at 2x and downscaling."""
+    from avtv.assembler import build_montage_args
+    args = build_montage_args(
+        image_paths=["/a.jpg", "/b.jpg", "/c.jpg"],
+        output_path="/out.ts",
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+    )
+    cmd = " ".join(args)
+    # zoompan output is 2x target (3840x2160), then scaled down to 1920x1080
+    assert "s=3840x2160" in cmd
+    assert "scale=1920:1080" in cmd
+    # setsar=1 applied before zoompan
+    assert "setsar=1" in cmd
+
+
+def test_build_args_ken_burns_uses_internal_upscale_for_smooth_zoom():
+    plan = SegmentPlan(strategy="ken_burns", use_clip_audio=False)
+    args = build_segment_args(
+        input_path="/i.jpg",
+        output_path="/o.ts",
+        plan=plan,
+        target_w=1920,
+        target_h=1080,
+        target_fps=30,
+        clip_audio_db=-20.0,
+    )
+    cmd = " ".join(args)
+    assert "s=3840x2160" in cmd
+    assert "scale=1920:1080" in cmd
+    assert "setsar=1" in cmd

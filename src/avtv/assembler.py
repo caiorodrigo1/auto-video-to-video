@@ -225,11 +225,16 @@ def _ken_burns_args(
     target_fps: int,
 ) -> list[str]:
     total_frames = int(BLOCK_DURATION * target_fps)
-    # Linear zoom from 1.0 to 1.15 across total_frames
+    # Linear zoom from 1.0 to 1.15 across total_frames.
+    # Render zoompan at 2x target then scale down to kill sub-pixel jitter
+    # (zoompan rounds per-frame x/y to integer pixels; the downscale averages
+    # the rounding error and produces smooth motion).
     zoompan = (
+        f"setsar=1,"
         f"zoompan=z='min(zoom+0.0007,1.15)':"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-        f"d={total_frames}:s={target_w}x{target_h}:fps={target_fps}"
+        f"d={total_frames}:s={target_w * 2}x{target_h * 2}:fps={target_fps},"
+        f"scale={target_w}:{target_h}"
     )
     return [
         "-y",
@@ -272,10 +277,15 @@ def build_montage_args(
 
     filter_parts: list[str] = []
     for i in range(n):
+        # Render zoompan at 2x target then scale down to kill sub-pixel
+        # jitter (zoompan's per-frame integer-pixel rounding produces visible
+        # stutter near zoom=1.0; the downscale averages it out).
         filter_parts.append(
-            f"[{i}:v]zoompan=z='min(zoom+{zoom_step:.5f},1.15)':"
+            f"[{i}:v]setsar=1,"
+            f"zoompan=z='min(zoom+{zoom_step:.5f},1.15)':"
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d={frames_per}:s={target_w}x{target_h}:fps={target_fps}"
+            f"d={frames_per}:s={target_w * 2}x{target_h * 2}:fps={target_fps},"
+            f"scale={target_w}:{target_h}"
             f"[v{i}]"
         )
     concat_inputs = "".join(f"[v{i}]" for i in range(n))

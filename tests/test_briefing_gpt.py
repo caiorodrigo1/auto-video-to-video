@@ -54,3 +54,27 @@ def test_openai_provider_returns_briefs(mock_openai_response, monkeypatch):
 
     assert len(briefs) == 1
     assert briefs[0].query_en == "forest sunlight"
+
+
+def test_gpt_provider_threads_topic_into_system_prompt(mock_openai_response, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setenv("PEXELS_API_KEY", "x")
+    monkeypatch.setenv("PIXABAY_API_KEY", "x")
+    monkeypatch.setenv("UNSPLASH_API_KEY", "x")
+
+    # Fixture returns exactly 1 brief — use 1 block to satisfy count check.
+    blocks = [Block.from_text(1, 0.0, 8.0, "x")]
+
+    with patch("avtv.briefing.gpt.OpenAI") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.completions.create.return_value = mock_openai_response
+
+        provider = OpenAIProvider()
+        provider.generate_briefs(blocks, topic="Roman aqueducts")
+
+    call = instance.chat.completions.create.call_args
+    messages = call.kwargs["messages"]
+    system_msg = next(m for m in messages if m["role"] == "system")
+    assert "Roman aqueducts" in system_msg["content"]
+    assert "RULES:" in system_msg["content"]

@@ -2,7 +2,7 @@ from typing import Any
 
 from anthropic import Anthropic
 
-from avtv.briefing.prompt import SYSTEM_PROMPT, build_user_message
+from avtv.briefing.prompt import build_system_prompt, build_user_message
 from avtv.briefing.schema import BRIEF_TOOL_SCHEMA, parse_briefs_response
 from avtv.config import Settings
 from avtv.models import Block, VisualBrief
@@ -15,7 +15,11 @@ class ClaudeProvider:
         self.settings = settings or Settings()  # type: ignore[call-arg]
         self.client = Anthropic(api_key=self.settings.anthropic_api_key)
 
-    def generate_briefs(self, blocks: list[Block]) -> list[VisualBrief]:
+    def generate_briefs(
+        self,
+        blocks: list[Block],
+        topic: str | None = None,
+    ) -> list[VisualBrief]:
         user_msg = build_user_message(blocks)
 
         response = self.client.messages.create(
@@ -24,7 +28,7 @@ class ClaudeProvider:
             system=[
                 {
                     "type": "text",
-                    "text": SYSTEM_PROMPT,
+                    "text": build_system_prompt(topic),
                     "cache_control": {"type": "ephemeral"},
                 }
             ],

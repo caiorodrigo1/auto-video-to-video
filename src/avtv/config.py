@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     weight_duration: float = 1.0
     weight_resolution: float = 1.0
     weight_source: float = 1.0
+    # Soft penalty per prior selection that shares the same `attribution`
+    # (photographer/creator). Pixabay/Pexels rank prolific contributors
+    # high for any related query, so without this the same author's photos
+    # dominate the timeline. Each repeat subtracts this from the score.
+    attribution_penalty: float = 0.5
     image_montage_max: int = 3
 
     # Search

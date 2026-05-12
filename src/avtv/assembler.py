@@ -217,6 +217,42 @@ def _loop_args(
     ]
 
 
+_MAX_ZOOM = 1.15
+
+
+def _zoom_in_filter(duration: float, target_w: int, target_h: int, target_fps: int) -> str:
+    """Smooth zoom-in filter for a single still image.
+
+    Approach (no zoompan, no time-varying crop):
+    1. Pre-scale source to 2x target with lanczos.
+    2. Time-varying `scale` grows the image by zoom factor Z(t) = 1+rate*t.
+    3. Fixed center-crop to 2x target — as the image grows, the fixed crop
+       shows progressively less of the original content (= zoom-in).
+    4. Final lanczos-scale to target. The downscale smooths any 1-pixel
+       jitter at 2x target into invisible sub-pixel jitter at target.
+
+    This avoids zoompan's compounding integer-rounding error (separate
+    rounding on zoom + x + y) — here the only rounded value is the
+    intermediate scale's output dimensions, and the final downscale fixes it.
+    Output dimensions are forced even (`ceil(.../2)*2`) for codec safety.
+    """
+    over_w = target_w * 2
+    over_h = target_h * 2
+    rate = (_MAX_ZOOM - 1.0) / duration  # per-second linear growth
+    return (
+        f"scale={over_w}:{over_h}:force_original_aspect_ratio=increase:flags=lanczos,"
+        f"crop={over_w}:{over_h},"
+        f"setsar=1,"
+        f"scale="
+        f"w='ceil({over_w}*(1+{rate:.6f}*t)/2)*2':"
+        f"h='ceil({over_h}*(1+{rate:.6f}*t)/2)*2':"
+        f"eval=frame:flags=lanczos,"
+        f"crop={over_w}:{over_h}:(in_w-{over_w})/2:(in_h-{over_h})/2,"
+        f"scale={target_w}:{target_h}:flags=lanczos,"
+        f"fps={target_fps}"
+    )
+
+
 def _ken_burns_args(
     input_path: str,
     output_path: str,
@@ -224,18 +260,7 @@ def _ken_burns_args(
     target_h: int,
     target_fps: int,
 ) -> list[str]:
-    total_frames = int(BLOCK_DURATION * target_fps)
-    # Linear zoom from 1.0 to 1.15 across total_frames.
-    # Render zoompan at 2x target then scale down to kill sub-pixel jitter
-    # (zoompan rounds per-frame x/y to integer pixels; the downscale averages
-    # the rounding error and produces smooth motion).
-    zoompan = (
-        f"setsar=1,"
-        f"zoompan=z='min(zoom+0.0007,1.15)':"
-        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-        f"d={total_frames}:s={target_w * 2}x{target_h * 2}:fps={target_fps},"
-        f"scale={target_w}:{target_h}"
-    )
+    vfilter = _zoom_in_filter(BLOCK_DURATION, target_w, target_h, target_fps)
     return [
         "-y",
         "-loop",
@@ -245,7 +270,7 @@ def _ken_burns_args(
         "-t",
         f"{BLOCK_DURATION}",
         "-vf",
-        zoompan,
+        vfilter,
         "-c:v",
         "libx264",
         "-preset",
@@ -271,29 +296,22 @@ def build_montage_args(
     n = len(image_paths)
     if n == 0:
         raise ValueError("build_montage_args requires at least one image")
-    total_frames = int(BLOCK_DURATION * target_fps)
-    frames_per = total_frames // n
-    zoom_step = 0.15 / max(frames_per, 1)
+    per_image = BLOCK_DURATION / n  # 2.667s for n=3, 4s for n=2, 8s for n=1
 
-    filter_parts: list[str] = []
-    for i in range(n):
-        # Render zoompan at 2x target then scale down to kill sub-pixel
-        # jitter (zoompan's per-frame integer-pixel rounding produces visible
-        # stutter near zoom=1.0; the downscale averages it out).
-        filter_parts.append(
-            f"[{i}:v]setsar=1,"
-            f"zoompan=z='min(zoom+{zoom_step:.5f},1.15)':"
-            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d={frames_per}:s={target_w * 2}x{target_h * 2}:fps={target_fps},"
-            f"scale={target_w}:{target_h}"
-            f"[v{i}]"
-        )
+    # Use the same crop-based zoom approach as _ken_burns_args (no zoompan).
+    # Each input stream is bound to per_image seconds via -loop 1 -t per_image.
+    base_filter = _zoom_in_filter(per_image, target_w, target_h, target_fps)
+
+    filter_parts: list[str] = [
+        f"[{i}:v]{base_filter},trim=duration={per_image:.4f},setpts=PTS-STARTPTS[v{i}]"
+        for i in range(n)
+    ]
     concat_inputs = "".join(f"[v{i}]" for i in range(n))
     filter_complex = ";".join(filter_parts) + f";{concat_inputs}concat=n={n}:v=1:a=0[out]"
 
     args = ["-y"]
     for p in image_paths:
-        args += ["-loop", "1", "-i", p]
+        args += ["-loop", "1", "-t", f"{per_image:.4f}", "-i", p]
     args += [
         "-filter_complex",
         filter_complex,

@@ -295,3 +295,26 @@ async def test_first_block_continuation_with_no_image_search_raises(monkeypatch)
     cands: dict[int, list] = {}
     with pytest.raises(SelectorError):
         await select_per_block(briefs, cands, settings=s, image_search=None)
+
+
+@pytest.mark.asyncio
+async def test_select_per_block_fires_progress_callback(monkeypatch):
+    s = _settings(monkeypatch)
+    briefs = [_brief(i) for i in range(1, 4)]
+    cands = {
+        1: [_make(url="a", height=1080)],
+        2: [_make(url="b", height=1080)],
+        3: [_make(url="c", height=1080)],
+    }
+    events: list[tuple[int, int]] = []
+
+    await select_per_block(
+        briefs,
+        cands,
+        settings=s,
+        on_progress=lambda c, t: events.append((c, t)),
+    )
+
+    # 3 briefs → 3 sequential progress events with total=3 and completed
+    # going 1, 2, 3 in order (sync for loop).
+    assert events == [(1, 3), (2, 3), (3, 3)]

@@ -4,6 +4,7 @@ from avtv.config import Settings
 from avtv.models import Candidate, Selection, VisualBrief
 
 ImageSearch = Callable[[VisualBrief], Awaitable[list[Candidate]]]
+ProgressCallback = Callable[[int, int], None]
 
 SOURCE_PREFERENCE = {
     "pexels": 1.00,
@@ -142,6 +143,7 @@ async def select_per_block(
     candidates: dict[int, list[Candidate]],
     settings: Settings,
     image_search: ImageSearch | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> list[Selection]:
     """Pick exactly one Selection per brief.
 
@@ -154,10 +156,14 @@ async def select_per_block(
       used, fall back to image_montage via image_search; if that yields 0,
       repeat the least-recently-used candidate (last-resort).
     - Block 1 with no usable visuals raises SelectorError (it cannot extend).
+
+    `on_progress(completed, total)` fires after each brief is resolved
+    (1-based), useful for driving a UI progress bar.
     """
     selections: list[Selection] = []
     used: set[str] = set()
     last_idx_used: dict[str, int] = {}  # for least-recently-used fallback
+    total = len(briefs)
 
     for pos, brief in enumerate(briefs):
         if brief.kind == "continuation":
@@ -184,6 +190,9 @@ async def select_per_block(
             last_idx_used[u] = pos
 
         selections.append(sel)
+
+        if on_progress is not None:
+            on_progress(pos + 1, total)
 
     return selections
 

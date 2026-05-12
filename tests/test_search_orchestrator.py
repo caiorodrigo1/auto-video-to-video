@@ -124,3 +124,24 @@ async def test_search_images_for_brief_returns_empty_when_no_image_adapter():
     brief = VisualBrief(idx=1, query_en="forest", fallback_query="nature", kind="video")
     out = await orch.search_images_for_brief(brief)
     assert out == []
+
+
+@pytest.mark.asyncio
+async def test_search_for_briefs_fires_progress_callback():
+    a = FakeAdapter("a", {"video"}, {})
+    orch = SearchOrchestrator(adapters=[a])
+
+    briefs = [
+        VisualBrief(idx=i, query_en=f"q{i}", fallback_query="y", kind="video")
+        for i in range(1, 4)
+    ]
+    events: list[tuple[int, int]] = []
+
+    await orch.search_for_briefs(briefs, on_progress=lambda c, t: events.append((c, t)))
+
+    # 3 briefs → exactly 3 progress events, each with total=3.
+    assert len(events) == 3
+    assert {e[1] for e in events} == {3}
+    # Completed counts are monotonic 1..3 (order may vary due to gather, but
+    # the set of completed values is exactly {1, 2, 3}).
+    assert sorted(e[0] for e in events) == [1, 2, 3]

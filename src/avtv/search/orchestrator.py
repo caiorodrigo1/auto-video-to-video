@@ -1,7 +1,10 @@
 import asyncio
+from collections.abc import Callable
 
 from avtv.models import Candidate, VisualBrief
 from avtv.search.base import MediaKind, SearchAdapter, dedupe_candidates
+
+ProgressCallback = Callable[[int, int], None]
 
 
 class SearchOrchestrator:
@@ -51,13 +54,29 @@ class SearchOrchestrator:
         return dedupe_candidates(fallback)
 
     async def search_for_briefs(
-        self, briefs: list[VisualBrief], concurrency: int = 5
+        self,
+        briefs: list[VisualBrief],
+        concurrency: int = 5,
+        on_progress: ProgressCallback | None = None,
     ) -> dict[int, list[Candidate]]:
+        """Search for every brief in parallel (bounded by `concurrency`).
+
+        `on_progress(completed, total)` fires once per brief as it finishes,
+        with `completed` being the 1-based count of finished briefs (not the
+        brief idx). Useful for driving a UI progress bar.
+        """
         sem = asyncio.Semaphore(concurrency)
+        total = len(briefs)
+        completed = 0
 
         async def _bounded(brief: VisualBrief) -> tuple[int, list[Candidate]]:
+            nonlocal completed
             async with sem:
-                return brief.idx, await self.search_for_brief(brief)
+                result = await self.search_for_brief(brief)
+            completed += 1
+            if on_progress is not None:
+                on_progress(completed, total)
+            return brief.idx, result
 
         results = await asyncio.gather(*[_bounded(b) for b in briefs])
         return dict(results)

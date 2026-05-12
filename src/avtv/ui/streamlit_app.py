@@ -109,17 +109,29 @@ def _run_stage_brief(rd: RunDir, provider_name: str) -> int:
     return len(briefs)
 
 
-def _run_stage_search(rd: RunDir, settings: Settings) -> int:
+def _run_stage_search(
+    rd: RunDir,
+    settings: Settings,
+    on_progress: object | None = None,
+) -> int:
     briefs = rd.load_briefs()
     orch = _build_orchestrator(settings)
     results = asyncio.run(
-        orch.search_for_briefs(briefs, concurrency=settings.search_concurrency)
+        orch.search_for_briefs(
+            briefs,
+            concurrency=settings.search_concurrency,
+            on_progress=on_progress,  # type: ignore[arg-type]
+        )
     )
     rd.save_search_results(results)
     return sum(len(v) for v in results.values())
 
 
-def _run_stage_select(rd: RunDir, settings: Settings) -> int:
+def _run_stage_select(
+    rd: RunDir,
+    settings: Settings,
+    on_progress: object | None = None,
+) -> int:
     briefs = rd.load_briefs()
     candidates = rd.load_search_results()
     orch = _build_orchestrator(settings)
@@ -129,6 +141,7 @@ def _run_stage_select(rd: RunDir, settings: Settings) -> int:
             candidates,
             settings=settings,
             image_search=orch.search_images_for_brief,
+            on_progress=on_progress,  # type: ignore[arg-type]
         )
     )
     rd.save_selections(sels)
@@ -301,11 +314,23 @@ if mode == "new":
                 st.write(f"  → {n_briefs} briefs")
 
                 st.write("🔍 **Search**")
-                n_cands = _run_stage_search(rd, settings)
+                search_bar = st.progress(0.0, text="Querying providers…")
+
+                def on_search(i: int, total: int) -> None:
+                    search_bar.progress(i / total, text=f"Brief {i}/{total}")
+
+                n_cands = _run_stage_search(rd, settings, on_progress=on_search)
+                search_bar.empty()
                 st.write(f"  → {n_cands} candidates")
 
                 st.write("🎯 **Select**")
-                n_sels = _run_stage_select(rd, settings)
+                select_bar = st.progress(0.0, text="Ranking candidates…")
+
+                def on_select(i: int, total: int) -> None:
+                    select_bar.progress(i / total, text=f"Block {i}/{total}")
+
+                n_sels = _run_stage_select(rd, settings, on_progress=on_select)
+                select_bar.empty()
                 st.write(f"  → {n_sels} clips")
 
                 st.write("🎬 **Assemble** (download + ffmpeg)")
@@ -488,8 +513,13 @@ elif mode == "run":
             use_container_width=True,
             disabled=not rd.has(RunDir.BRIEFS),
         ):
-            with st.spinner("Searching…"):
-                n = _run_stage_search(rd, settings)
+            search_bar = st.progress(0.0, text="Querying providers…")
+
+            def on_search_action(i: int, total: int) -> None:
+                search_bar.progress(i / total, text=f"Brief {i}/{total}")
+
+            n = _run_stage_search(rd, settings, on_progress=on_search_action)
+            search_bar.empty()
             st.success(f"{n} candidates")
             st.rerun()
 
@@ -498,8 +528,13 @@ elif mode == "run":
             use_container_width=True,
             disabled=not rd.has(RunDir.SEARCH),
         ):
-            with st.spinner("Selecting…"):
-                n = _run_stage_select(rd, settings)
+            select_bar = st.progress(0.0, text="Ranking candidates…")
+
+            def on_select_action(i: int, total: int) -> None:
+                select_bar.progress(i / total, text=f"Block {i}/{total}")
+
+            n = _run_stage_select(rd, settings, on_progress=on_select_action)
+            select_bar.empty()
             st.success(f"{n} clips")
             st.rerun()
 

@@ -155,7 +155,11 @@ def test_build_args_ken_burns_image():
         clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
-    assert "zoompan" in cmd
+    # Smooth zoom-in: pre-scale 2x + time-varying scale + fixed center crop
+    # + final lanczos scale. No zoompan (which caused the jitter near zoom=1.0).
+    assert "zoompan" not in cmd
+    assert "eval=frame" in cmd
+    assert "scale=1920:1080:flags=lanczos" in cmd
     assert "-t 8.0" in cmd
 
 
@@ -225,13 +229,14 @@ def test_build_args_image_montage_three_images():
     # All three inputs are passed with -loop 1
     assert cmd.count("-loop 1") == 3
     assert "/a.jpg" in cmd and "/b.jpg" in cmd and "/c.jpg" in cmd
-    # filter_complex with 3 zoompan + concat
-    assert "zoompan" in cmd
+    # filter_complex uses scale-based zoom (no zoompan jitter) + concat
+    assert "zoompan" not in cmd
+    assert "eval=frame" in cmd
     assert "concat=n=3:v=1:a=0" in cmd
     assert "-t 8.0" in cmd
     assert "-an" in cmd  # no clip audio
-    # frames per image: 30fps * 8s / 3 = 80
-    assert "d=80" in cmd
+    # Each input bound to per-image duration: 8/3 = 2.6667s
+    assert "-t 2.6667" in cmd
 
 
 def test_build_args_image_montage_two_images_split_evenly():
@@ -245,12 +250,16 @@ def test_build_args_image_montage_two_images_split_evenly():
     )
     cmd = " ".join(args)
     assert "concat=n=2:v=1:a=0" in cmd
-    # 30fps * 8s / 2 = 120 frames each
-    assert "d=120" in cmd
+    # 8s / 2 = 4.0s per image
+    assert "-t 4.0000" in cmd
+    assert "zoompan" not in cmd
 
 
-def test_build_args_image_montage_uses_internal_upscale_for_smooth_zoom():
-    """Avoids ffmpeg zoompan sub-pixel jitter by rendering at 2x and downscaling."""
+def test_build_args_image_montage_uses_smooth_zoom_filter():
+    """Regression guard against zoompan jitter: the scale-based zoom approach
+    pre-scales to 2x target with lanczos, applies a time-varying scale that
+    grows the image, takes a fixed center crop (zoom-in effect), then
+    lanczos-scales to target. Pure zoom-in motion, no shake."""
     from avtv.assembler import build_montage_args
     args = build_montage_args(
         image_paths=["/a.jpg", "/b.jpg", "/c.jpg"],
@@ -260,14 +269,18 @@ def test_build_args_image_montage_uses_internal_upscale_for_smooth_zoom():
         target_fps=30,
     )
     cmd = " ".join(args)
-    # zoompan output is 2x target (3840x2160), then scaled down to 1920x1080
-    assert "s=3840x2160" in cmd
-    assert "scale=1920:1080" in cmd
-    # setsar=1 applied before zoompan
-    assert "setsar=1" in cmd
+    assert "zoompan" not in cmd
+    # Pre-scale at 2x target with lanczos.
+    assert "scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos" in cmd
+    # Final downscale at lanczos to target.
+    assert "scale=1920:1080:flags=lanczos" in cmd
+    # Time-varying scale (the actual zoom motion).
+    assert "eval=frame:flags=lanczos" in cmd
+    # Fixed center crop at oversample resolution.
+    assert "crop=3840:2160:" in cmd
 
 
-def test_build_args_ken_burns_uses_internal_upscale_for_smooth_zoom():
+def test_build_args_ken_burns_uses_smooth_zoom_filter():
     plan = SegmentPlan(strategy="ken_burns", use_clip_audio=False)
     args = build_segment_args(
         input_path="/i.jpg",
@@ -279,6 +292,8 @@ def test_build_args_ken_burns_uses_internal_upscale_for_smooth_zoom():
         clip_audio_db=-20.0,
     )
     cmd = " ".join(args)
-    assert "s=3840x2160" in cmd
-    assert "scale=1920:1080" in cmd
-    assert "setsar=1" in cmd
+    assert "zoompan" not in cmd
+    assert "scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos" in cmd
+    assert "scale=1920:1080:flags=lanczos" in cmd
+    assert "eval=frame:flags=lanczos" in cmd
+    assert "crop=3840:2160:" in cmd
